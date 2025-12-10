@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <View
+        android:id="@+id/headerBg"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@color/kindbox_primary"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <ImageView
+        android:id="@+id/btnBack"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_arrow_back"
+        app:tint="@color/white"
+        android:layout_marginStart="16dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/headerBg"
+        app:layout_constraintBottom_toBottomOf="@id/headerBg"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Upload Barang"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/headerBg"
+        app:layout_constraintBottom_toBottomOf="@id/headerBg"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:padding="24dp"
+        app:layout_constraintTop_toBottomOf="@id/headerBg"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="50dp">
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Judul" />
+            <EditText
+                android:id="@+id/etTitle"
+                style="@style/InputForm"
+                android:hint="Nama Barang" />
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Deskripsi" />
+            <EditText
+                android:id="@+id/etDesc"
+                style="@style/InputForm"
+                android:hint="Ceritakan tentang barangnya..."
+                android:inputType="textMultiLine"
+                android:minLines="3"
+                android:gravity="top|start" />
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Lokasi" />
+
+            <EditText
+                android:id="@+id/etLocation"
+                style="@style/InputForm"
+                android:hint="Lokasi Barang"
+                android:layout_marginBottom="1dp"/>
+
+            <CheckBox
+                android:id="@+id/cbUseProfileLocation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gunakan lokasi dari profil"
+                android:textSize="10sp"
+                android:textColor="#666666"
+                android:buttonTint="@color/kindbox_primary"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Jumlah" />
+            <EditText
+                android:id="@+id/etQuantity"
+                style="@style/InputForm"
+                android:hint="Jumlah Barang"
+                android:inputType="number" />
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Kategori" />
+            <Spinner
+                android:id="@+id/spCategory"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_input_field"
+                android:layout_marginBottom="12dp"
+                android:paddingStart="8dp"/>
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Kondisi Barang" />
+            <Spinner
+                android:id="@+id/spCondition"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_input_field"
+                android:layout_marginBottom="12dp"
+                android:paddingStart="8dp"/>
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Foto Barang" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_input_field"
+                android:padding="12dp"
+                android:layout_marginBottom="4dp">
+
+                <Button
+                    android:id="@+id/btnChooseImage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="Choose Files"
+                    android:backgroundTint="#C8D6B9"
+                    android:textColor="#3E5D42"
+                    android:textAllCaps="false" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(Hanya dalam format jpg / png)"
+                android:textSize="10sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="12dp"/>
+
+            <ImageView
+                android:id="@+id/ivPreview"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:scaleType="centerCrop"
+                android:background="#EEEEEE"
+                android:src="@drawable/ic_launcher_foreground"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                style="@style/LabelForm"
+                android:text="Nomor WhatsApp yang bisa Dihubungi" />
+            <EditText
+                android:id="@+id/etWhatsApp"
+                style="@style/InputForm"
+                android:hint="Nomor WhatsApp"
+                android:inputType="phone" />
+
+            <Button
+                android:id="@+id/btnKirim"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:text="Kirim"
+                android:backgroundTint="@color/kindbox_dark_green"
+                android:layout_marginTop="20dp"/>
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@color/kindbox_primary"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <ImageView
+            android:id="@+id/navHome"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:padding="16dp"
+            android:src="@drawable/ic_home"
+            app:tint="@color/white"/>
+
+        <ImageView
+            android:id="@+id/navAdd"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:src="@drawable/ic_plus"
+            app:tint="@color/white"/>
+
+        <ImageView
+            android:id="@+id/navProfile"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:padding="16dp"
+            android:src="@drawable/ic_person"
+            app:tint="@color/white"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

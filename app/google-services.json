@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "177707726902",
+    "project_id": "kindboxmobile",
+    "storage_bucket": "kindboxmobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177707726902:android:7f3979ffcdee8c98c60097",
+        "android_client_info": {
+          "package_name": "com.example.kindboxmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMmkHgJoechweeGUiH2O8HCyhVU96Bzus"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

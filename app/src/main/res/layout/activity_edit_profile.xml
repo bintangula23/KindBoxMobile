@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <View
+        android:id="@+id/headerBg"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@color/kindbox_primary"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <ImageView
+        android:id="@+id/btnBack"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_arrow_back"
+        app:tint="@color/white"
+        android:layout_marginStart="16dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/headerBg"
+        app:layout_constraintBottom_toBottomOf="@id/headerBg"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Update Profile"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/headerBg"
+        app:layout_constraintBottom_toBottomOf="@id/headerBg"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:padding="24dp"
+        app:layout_constraintTop_toBottomOf="@id/headerBg"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="40dp">
+
+            <RelativeLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginBottom="24dp"
+                android:layout_marginTop="16dp">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    app:cardCornerRadius="50dp"
+                    app:cardElevation="0dp">
+                    <ImageView
+                        android:id="@+id/ivProfile"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@mipmap/ic_launcher_round"
+                        android:scaleType="centerCrop"
+                        android:background="#DDDDDD"/>
+                </androidx.cardview.widget.CardView>
+
+                <ImageView
+                    android:id="@+id/ivEditPhoto"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_alignParentBottom="true"
+                    android:layout_marginEnd="233dp"
+                    android:layout_marginBottom="7dp"
+                    android:elevation="4dp"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_edit_pencil"
+                    app:tint="@color/kindbox_primary" />
+            </RelativeLayout>
+
+            <TextView style="@style/LabelForm" android:text="Nama" />
+            <EditText
+                android:id="@+id/etName"
+                style="@style/InputForm"
+                android:hint="Nama Lengkap"
+                android:backgroundTint="@color/kindbox_light_green"
+                android:background="@drawable/bg_input_field"
+                android:drawableEnd="@drawable/ic_edit_pencil"
+                android:paddingEnd="12dp"
+                android:focusable="false"
+                android:clickable="true"/> <TextView style="@style/LabelForm" android:text="Username" />
+            <EditText
+                android:id="@+id/etUsername"
+                style="@style/InputForm"
+                android:hint="Username"
+                android:background="@drawable/bg_input_field"
+                android:drawableEnd="@drawable/ic_edit_pencil"
+                android:paddingEnd="12dp"
+                android:focusable="false"
+                android:clickable="true"/>
+
+            <TextView style="@style/LabelForm" android:text="Email" />
+            <EditText
+                android:id="@+id/etEmail"
+                style="@style/InputForm"
+                android:hint="Email"
+                android:inputType="textEmailAddress"
+                android:background="@drawable/bg_input_field"
+                android:paddingEnd="12dp"
+                android:focusable="false"
+                android:enabled="false"/>
+
+            <TextView style="@style/LabelForm" android:text="Lokasi" />
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
+
+                <EditText
+                    android:id="@+id/etLocation"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:background="@drawable/bg_input_field"
+                    android:hint="Lokasi"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="50dp"
+                    android:textColor="@color/kindbox_text_color"/>
+
+                <ImageView
+                    android:id="@+id/btnDetectLocation"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@android:drawable/ic_menu_mylocation"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="8dp"
+                    android:padding="8dp"
+                    app:tint="@color/kindbox_primary"/>
+            </RelativeLayout>
+
+            <TextView style="@style/LabelForm" android:text="Ganti Password" />
+            <EditText
+                android:id="@+id/etPassword"
+                style="@style/InputForm"
+                android:hint="Password Baru (opsional)"
+                android:inputType="textPassword"
+                android:background="@drawable/bg_input_field"
+                android:drawableEnd="@drawable/ic_edit_pencil"
+                android:paddingEnd="12dp"
+                android:focusable="false"
+                android:clickable="true"/>
+
+            <Button
+                android:id="@+id/btnSubmit"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:text="Submit"
+                android:backgroundTint="@color/kindbox_dark_green"
+                android:layout_marginTop="16dp"/>
+
+            <Button
+                android:id="@+id/btnDeleteAccount"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:text="Hapus Akun"
+                android:backgroundTint="@color/kindbox_red"
+                android:layout_marginTop="12dp"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@color/kindbox_primary"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent">
+        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@mipmap/ic_launcher_round" app:tint="@color/white"/>
+        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="12dp" android:src="@drawable/ic_input_add" app:tint="@color/white"/>
+        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@mipmap/ic_launcher_round" app:tint="@color/white"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
