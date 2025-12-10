@@ -102,6 +102,8 @@ class EditProfileActivity : AppCompatActivity() {
         binding.btnDeleteAccount.setOnClickListener {
             showDeleteConfirmation()
         }
+
+        setupBottomNavigation()
     }
 
     // --- FUNGSI UNTUK MENGAKTIFKAN EDIT TEXT SAAT KLIK PENSIL ---
@@ -341,5 +343,16 @@ class EditProfileActivity : AppCompatActivity() {
                     }
                 }
             }
+    }
+
+    private fun setupBottomNavigation() {
+        binding.navHome.setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+        }
+        binding.navAdd.setOnClickListener {
+            startActivity(Intent(this, AddDonationActivity::class.java))
+            finish()
+        }
     }
 }

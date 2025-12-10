@@ -164,7 +164,7 @@
             <EditText
                 android:id="@+id/etWhatsApp"
                 style="@style/InputForm"
-                android:hint="Nomor WhatsApp"
+                android:hint="6285XXXXXXXXX"
                 android:inputType="phone" />
 
             <Button

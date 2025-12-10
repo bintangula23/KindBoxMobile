@@ -160,7 +160,7 @@
                 android:id="@+id/btnSubmit"
                 android:layout_width="match_parent"
                 android:layout_height="55dp"
-                android:text="Submit"
+                android:text="Simpan"
                 android:backgroundTint="@color/kindbox_dark_green"
                 android:layout_marginTop="16dp"/>
 
