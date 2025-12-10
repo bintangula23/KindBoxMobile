@@ -5,7 +5,9 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
@@ -29,6 +31,10 @@ class MainActivity : AppCompatActivity() {
     // List untuk menyimpan data asli (Barang Orang Lain)
     private var otherUsersDonations: List<DonationEntity> = listOf()
 
+    // Variabel filter
+    private var currentSearchQuery: String = ""
+    private var currentCategoryFilter: String = "Semua Kategori" // Default filter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -46,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupViewModel()
         setupSearch()
+        setupFilterButton() // BARU: Setup aksi tombol filter
         setupBottomNav()
     }
 
@@ -96,12 +103,11 @@ class MainActivity : AppCompatActivity() {
         viewModel.donations.observe(this) { listBarang ->
             val myUserId = FirebaseAuth.getInstance().currentUser?.uid
 
-            // PERBAIKAN: Filter di awal, simpan ke variabel global 'otherUsersDonations'
             // Hanya ambil barang yang BUKAN milik saya
             otherUsersDonations = listBarang.filter { it.userId != myUserId }
 
-            // Tampilkan data yang sudah difilter
-            updateList(otherUsersDonations)
+            // Terapkan filter gabungan
+            applyFilters()
         }
         viewModel.refreshData()
     }
@@ -111,23 +117,59 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                filterData(s.toString())
+                currentSearchQuery = s.toString() // Update query
+                applyFilters() // Terapkan filter gabungan
             }
 
             override fun afterTextChanged(s: Editable?) {}
         })
     }
 
-    private fun filterData(query: String) {
-        // Filter dari 'otherUsersDonations', bukan dari list kosong atau list mentah
-        val filteredList = if (query.isEmpty()) {
-            otherUsersDonations
-        } else {
-            otherUsersDonations.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.description.contains(query, ignoreCase = true)
+    // BARU: Logika Dialog Filter Kategori
+    private fun setupFilterButton() {
+        binding.btnFilter.setOnClickListener {
+            showCategoryFilterDialog()
+        }
+    }
+
+    private fun showCategoryFilterDialog() {
+        val categories = resources.getStringArray(R.array.donation_categories_filter)
+
+        // Temukan index kategori yang saat ini dipilih
+        val checkedItem = categories.indexOf(currentCategoryFilter).takeIf { it >= 0 } ?: 0
+
+        AlertDialog.Builder(this)
+            .setTitle("Filter Berdasarkan Kategori")
+            .setSingleChoiceItems(categories, checkedItem) { dialog, which ->
+                currentCategoryFilter = categories[which]
+                // Opsional: Tampilkan kategori yang dipilih di TextView yang tidak ada (Hanya internal)
+                // Contoh: Toast.makeText(this, "Filter: ${currentCategoryFilter}", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+                applyFilters()
+            }
+            .setNegativeButton("Batal") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    // UBAH: Fungsi untuk menerapkan semua filter
+    private fun applyFilters() {
+        var filteredList = otherUsersDonations
+
+        // 1. Filter berdasarkan Kategori
+        if (currentCategoryFilter != "Semua Kategori") {
+            filteredList = filteredList.filter { it.category == currentCategoryFilter }
+        }
+
+        // 2. Filter berdasarkan Search Query
+        if (currentSearchQuery.isNotEmpty()) {
+            filteredList = filteredList.filter {
+                it.title.contains(currentSearchQuery, ignoreCase = true) ||
+                        it.description.contains(currentSearchQuery, ignoreCase = true)
             }
         }
+
         updateList(filteredList)
     }
 

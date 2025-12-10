@@ -4,7 +4,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.widget.Toast
+import android.view.View
+import android.widget.AdapterView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
@@ -29,20 +31,29 @@ class ProfileActivity : AppCompatActivity() {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    // Variabel untuk menyimpan DATA ASLI (Sebelum difilter search)
+    // Variabel untuk menyimpan DATA ASLI
     private var originalMyDonations: List<DonationEntity> = listOf()
     private var originalMyInterests: List<DonationEntity> = listOf()
+
+    // Variabel filter
+    private var searchMemberiQuery: String = ""
+    private var categoryFilterMemberi: String = "Semua Kategori" // Default
+    private var searchMinatQuery: String = ""
+    private var categoryFilterMinat: String = "Semua Kategori" // Default
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setupUserProfile()
+        setupUserProfile() // Menggunakan ID: tvName, tvUsername, ivProfile
         setupHistoryRecyclerView()
-        setupSearchListeners() // Tambahkan setup search
-        setupBottomNavigation()
+        setupSearchListeners()
+        setupFilterButtons() // BARU: Setup aksi tombol filter
+        setupBottomNavigation() // Menggunakan ID: navHome, navAdd
 
+        // ID: btnLogout, btnEditProfile sudah benar.
         binding.btnLogout.setOnClickListener {
             auth.signOut()
             val intent = Intent(this, LoginActivity::class.java)
@@ -118,9 +129,9 @@ class ProfileActivity : AppCompatActivity() {
             originalMyDonations = listBarang.filter { it.userId == myUserId }
             originalMyInterests = listBarang.filter { it.interestedUsers.contains(myUserId.toString()) }
 
-            // Tampilkan awal (tanpa filter search)
-            adapterMemberi.submitList(originalMyDonations)
-            adapterMinat.submitList(originalMyInterests)
+            // Terapkan filter gabungan
+            applyFilterMemberi()
+            applyFilterMinat()
         }
         viewModel.refreshData()
     }
@@ -130,7 +141,8 @@ class ProfileActivity : AppCompatActivity() {
         binding.etSearchMemberi.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                filterMemberi(s.toString())
+                searchMemberiQuery = s.toString() // Update query
+                applyFilterMemberi() // Terapkan filter gabungan
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -139,33 +151,85 @@ class ProfileActivity : AppCompatActivity() {
         binding.etSearchMinat.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                filterMinat(s.toString())
+                searchMinatQuery = s.toString() // Update query
+                applyFilterMinat() // Terapkan filter gabungan
             }
             override fun afterTextChanged(s: Editable?) {}
         })
     }
 
-    private fun filterMemberi(query: String) {
-        val filteredList = if (query.isEmpty()) {
-            originalMyDonations
-        } else {
-            originalMyDonations.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.description.contains(query, ignoreCase = true)
+    // BARU: Logika Dialog Filter Kategori untuk kedua riwayat
+    private fun setupFilterButtons() {
+        binding.btnFilterMemberi.setOnClickListener {
+            showCategoryFilterDialog(true)
+        }
+        binding.btnFilterMinat.setOnClickListener {
+            showCategoryFilterDialog(false)
+        }
+    }
+
+    private fun showCategoryFilterDialog(isMemberi: Boolean) {
+        val categories = resources.getStringArray(R.array.donation_categories_filter)
+        val currentFilter = if (isMemberi) categoryFilterMemberi else categoryFilterMinat
+
+        // Temukan index kategori yang saat ini dipilih
+        val checkedItem = categories.indexOf(currentFilter).takeIf { it >= 0 } ?: 0
+
+        AlertDialog.Builder(this)
+            .setTitle("Filter Kategori " + if (isMemberi) "Memberi" else "Minat")
+            .setSingleChoiceItems(categories, checkedItem) { dialog, which ->
+                val selectedCategory = categories[which]
+                if (isMemberi) {
+                    categoryFilterMemberi = selectedCategory
+                    applyFilterMemberi()
+                } else {
+                    categoryFilterMinat = selectedCategory
+                    applyFilterMinat()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Batal") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+
+    private fun applyFilterMemberi() {
+        var filteredList = originalMyDonations
+
+        // 1. Filter berdasarkan Kategori
+        if (categoryFilterMemberi != "Semua Kategori") {
+            filteredList = filteredList.filter { it.category == categoryFilterMemberi }
+        }
+
+        // 2. Filter berdasarkan Search Query
+        if (searchMemberiQuery.isNotEmpty()) {
+            filteredList = filteredList.filter {
+                it.title.contains(searchMemberiQuery, ignoreCase = true) ||
+                        it.description.contains(searchMemberiQuery, ignoreCase = true)
             }
         }
+
         adapterMemberi.submitList(filteredList)
     }
 
-    private fun filterMinat(query: String) {
-        val filteredList = if (query.isEmpty()) {
-            originalMyInterests
-        } else {
-            originalMyInterests.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.description.contains(query, ignoreCase = true)
+    private fun applyFilterMinat() {
+        var filteredList = originalMyInterests
+
+        // 1. Filter berdasarkan Kategori
+        if (categoryFilterMinat != "Semua Kategori") {
+            filteredList = filteredList.filter { it.category == categoryFilterMinat }
+        }
+
+        // 2. Filter berdasarkan Search Query
+        if (searchMinatQuery.isNotEmpty()) {
+            filteredList = filteredList.filter {
+                it.title.contains(searchMinatQuery, ignoreCase = true) ||
+                        it.description.contains(searchMinatQuery, ignoreCase = true)
             }
         }
+
         adapterMinat.submitList(filteredList)
     }
 

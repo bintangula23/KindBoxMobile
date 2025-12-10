@@ -1,5 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">KindBoxMobile</string>
     <string name="belum_ada_donasi">Belum ada donasi.</string>
     <string name="todo">TODO</string>
+    <string-array name="donation_categories_filter">
+        <item>Semua Kategori</item>
+        <item>Pakaian</item>
+        <item>Buku</item>
+        <item>Elektronik</item>
+        <item>Lainnya</item>
+    </string-array>
+    <string-array name="donation_conditions">
+        <item>Pilih Kondisi</item>
+        <item>Baru</item>
+        <item>Bekas</item>
+    </string-array>
 </resources>

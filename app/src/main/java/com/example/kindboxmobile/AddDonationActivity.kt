@@ -31,6 +31,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.kindboxmobile.R // Import R untuk mengakses resources
 
 class AddDonationActivity : AppCompatActivity() {
 
@@ -64,7 +65,6 @@ class AddDonationActivity : AppCompatActivity() {
         val repo = DonationRepository(db.donationDao(), FirebaseFirestore.getInstance(), FirebaseStorage.getInstance())
         viewModel = ViewModelProvider(this, ViewModelFactory(repo))[AddDonationViewModel::class.java]
 
-        setupSpinners()
         setupObservers()
         setupBottomNavigation()
 
@@ -210,13 +210,6 @@ class AddDonationActivity : AppCompatActivity() {
             condition = condition,
             whatsapp = whatsapp
         )
-    }
-
-    private fun setupSpinners() {
-        val categories = arrayOf("Pilih Kategori", "Pakaian", "Buku", "Elektronik", "Lainnya")
-        binding.spCategory.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
-        val conditions = arrayOf("Pilih Kondisi", "Baru", "Bekas")
-        binding.spCondition.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, conditions)
     }
 
     private fun fetchProfileLocation() {
