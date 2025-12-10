@@ -182,8 +182,7 @@
             android:layout_weight="1"
             android:padding="16dp"
             android:src="@drawable/ic_person"
-            app:tint="@color/white"
-            android:alpha="0.6"/>
+            app:tint="@color/white"/>
 
     </LinearLayout>
 

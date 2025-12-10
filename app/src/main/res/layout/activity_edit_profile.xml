@@ -27,7 +27,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Update Profile"
+        android:text="Edit Profile"
         android:textColor="@color/white"
         android:textSize="18sp"
         android:textStyle="bold"
@@ -183,9 +183,9 @@
         android:orientation="horizontal"
         android:gravity="center"
         app:layout_constraintBottom_toBottomOf="parent">
-        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@mipmap/ic_launcher_round" app:tint="@color/white"/>
-        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="12dp" android:src="@drawable/ic_input_add" app:tint="@color/white"/>
-        <ImageView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@mipmap/ic_launcher_round" app:tint="@color/white"/>
+        <ImageView android:id="@+id/navHome" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@drawable/ic_home" app:tint="@color/white"/>
+        <ImageView android:id="@+id/navAdd" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="12dp" android:src="@drawable/ic_plus" app:tint="@color/white"/>
+        <ImageView android:id="@+id/navProfile" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:padding="16dp" android:src="@drawable/ic_person" app:tint="@color/white"/>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
