@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">KindBoxMobile</string>
     <string name="belum_ada_donasi">Belum ada donasi.</string>
+    <string name="empty_donations_filtered">Tidak ada barang di kategori %1$s.</string>
     <string name="todo">TODO</string>
     <string-array name="donation_categories_filter">
         <item>Semua Kategori</item>

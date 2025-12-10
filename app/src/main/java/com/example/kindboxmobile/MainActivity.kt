@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -52,7 +51,7 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupViewModel()
         setupSearch()
-        setupFilterButton() // BARU: Setup aksi tombol filter
+        setupFilterButton()
         setupBottomNav()
     }
 
@@ -125,7 +124,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // BARU: Logika Dialog Filter Kategori
     private fun setupFilterButton() {
         binding.btnFilter.setOnClickListener {
             showCategoryFilterDialog()
@@ -142,8 +140,6 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Filter Berdasarkan Kategori")
             .setSingleChoiceItems(categories, checkedItem) { dialog, which ->
                 currentCategoryFilter = categories[which]
-                // Opsional: Tampilkan kategori yang dipilih di TextView yang tidak ada (Hanya internal)
-                // Contoh: Toast.makeText(this, "Filter: ${currentCategoryFilter}", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
                 applyFilters()
             }
@@ -153,7 +149,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // UBAH: Fungsi untuk menerapkan semua filter
     private fun applyFilters() {
         var filteredList = otherUsersDonations
 
@@ -177,6 +172,19 @@ class MainActivity : AppCompatActivity() {
         if (list.isEmpty()) {
             binding.tvEmptyState.visibility = View.VISIBLE
             binding.rvDonations.visibility = View.GONE
+
+            // BARU: Logika pesan kosong
+            if (currentCategoryFilter != "Semua Kategori") {
+                // Pesan khusus untuk filter kategori
+                binding.tvEmptyState.text = getString(R.string.empty_donations_filtered, currentCategoryFilter)
+            } else if (currentSearchQuery.isNotEmpty()) {
+                // Pesan khusus untuk filter search text
+                binding.tvEmptyState.text = "Tidak ada barang yang cocok dengan \"$currentSearchQuery\"."
+            }
+            else {
+                // Pesan default (tidak ada barang sama sekali)
+                binding.tvEmptyState.text = getString(R.string.belum_ada_donasi)
+            }
         } else {
             binding.tvEmptyState.visibility = View.GONE
             binding.rvDonations.visibility = View.VISIBLE

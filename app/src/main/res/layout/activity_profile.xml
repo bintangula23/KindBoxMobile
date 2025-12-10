@@ -193,6 +193,16 @@
                 android:nestedScrollingEnabled="false"/>
 
             <TextView
+                android:id="@+id/tvEmptyMemberi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Belum ada donasi yang kamu berikan."
+                android:gravity="center"
+                android:padding="16dp"
+                android:visibility="gone"
+                android:textColor="#666666"/>
+
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Riwayat Minat (Diambil)"
@@ -230,8 +240,19 @@
                 android:id="@+id/rvInterestedHistory"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
+                android:nestedScrollingEnabled="false"/>
+
+            <TextView
+                android:id="@+id/tvEmptyMinat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Belum ada barang yang kamu minati."
+                android:gravity="center"
+                android:padding="16dp"
+                android:visibility="gone"
+                android:textColor="#666666"
                 android:layout_marginBottom="20dp"/>
+
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

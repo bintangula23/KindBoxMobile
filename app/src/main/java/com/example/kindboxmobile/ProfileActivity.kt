@@ -6,6 +6,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.AdapterView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -47,13 +48,12 @@ class ProfileActivity : AppCompatActivity() {
         binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setupUserProfile() // Menggunakan ID: tvName, tvUsername, ivProfile
+        setupUserProfile()
         setupHistoryRecyclerView()
         setupSearchListeners()
-        setupFilterButtons() // BARU: Setup aksi tombol filter
-        setupBottomNavigation() // Menggunakan ID: navHome, navAdd
+        setupFilterButtons()
+        setupBottomNavigation()
 
-        // ID: btnLogout, btnEditProfile sudah benar.
         binding.btnLogout.setOnClickListener {
             auth.signOut()
             val intent = Intent(this, LoginActivity::class.java)
@@ -158,8 +158,8 @@ class ProfileActivity : AppCompatActivity() {
         })
     }
 
-    // BARU: Logika Dialog Filter Kategori untuk kedua riwayat
     private fun setupFilterButtons() {
+        // Asumsi ID btnFilterMemberi dan btnFilterMinat telah ditambahkan di ImageView filter pada activity_profile.xml
         binding.btnFilterMemberi.setOnClickListener {
             showCategoryFilterDialog(true)
         }
@@ -212,6 +212,18 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         adapterMemberi.submitList(filteredList)
+
+        // UBAH LOGIKA: Jika daftar kosong, tampilkan Toast (karena tidak ada TextView Empty State)
+        if (filteredList.isEmpty()) {
+            val emptyMessage = if (categoryFilterMemberi != "Semua Kategori") {
+                getString(R.string.empty_donations_filtered, categoryFilterMemberi)
+            } else if (searchMemberiQuery.isNotEmpty()) {
+                "Tidak ada barang yang cocok dengan \"$searchMemberiQuery\" di Riwayat Memberi."
+            } else {
+                "Belum ada donasi yang kamu berikan."
+            }
+            Toast.makeText(this, emptyMessage, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun applyFilterMinat() {
@@ -231,6 +243,18 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         adapterMinat.submitList(filteredList)
+
+        // UBAH LOGIKA: Jika daftar kosong, tampilkan Toast (karena tidak ada TextView Empty State)
+        if (filteredList.isEmpty()) {
+            val emptyMessage = if (categoryFilterMinat != "Semua Kategori") {
+                getString(R.string.empty_donations_filtered, categoryFilterMinat)
+            } else if (searchMinatQuery.isNotEmpty()) {
+                "Tidak ada barang yang cocok dengan \"$searchMinatQuery\" di Riwayat Minat."
+            } else {
+                "Belum ada barang yang kamu minati."
+            }
+            Toast.makeText(this, emptyMessage, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun setupBottomNavigation() {
