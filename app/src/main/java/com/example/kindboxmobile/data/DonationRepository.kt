@@ -28,12 +28,6 @@ class DonationRepository(
         try {
             val snapshot = firestore.collection("donations").get().await()
             val donations = snapshot.documents.map { doc ->
-                // Perlu memuat semua user ID, termasuk yang diverifikasi/ditolak,
-                // jika kita ingin menampilkannya di daftar Peminat.
-                // Karena kita tidak mengubah DonationEntity, kita tidak bisa menyimpan list status.
-                // Kita hanya bisa mengandalkan 'interestedUsers' yang hanya menyimpan ID PENDING.
-                // Ini akan diatasi di DetailDonationActivity dengan asumsi data tambahan.
-
                 val interestedList = doc.get("interestedUserIds") as? List<String> ?: emptyList()
                 val interestedString = interestedList.joinToString(",")
 
@@ -84,7 +78,6 @@ class DonationRepository(
                 "category" to category, "condition" to condition, "whatsappNumber" to whatsapp,
                 "interestedCount" to 0,
                 "interestedUserIds" to listOf<String>(),
-                // ASUMSI FIELD BARU UNTUK STATUS
                 "verifiedRecipients" to listOf<String>(),
                 "rejectedRecipients" to listOf<String>()
             )
@@ -147,7 +140,7 @@ class DonationRepository(
         }).dispatch()
     }
 
-    // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi (LOGIC MODIFIED)
+    // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi (REVISI FINAL)
     suspend fun verifyRecipientTransaction(
         donationId: String,
         recipientUserId: String,
@@ -159,18 +152,24 @@ class DonationRepository(
             firestore.runTransaction { transaction ->
                 val donationSnapshot = transaction.get(donationRef)
 
-                // 1. Validasi Stok
+                // 1. Validasi Stok KRITIS
                 val currentQuantity = (donationSnapshot.get("quantity") as? Number)?.toInt() ?: 0
 
+                // Cek Stok Habis
+                if (currentQuantity <= 0) {
+                    throw Exception("Stok barang sudah habis (0). Verifikasi dibatalkan.")
+                }
+
+                // Cek Stok Tidak Mencukupi
                 if (currentQuantity < quantityRequested) {
-                    throw Exception("Stok tidak mencukupi. Tersedia: $currentQuantity, Diminta: $quantityRequested.")
+                    throw Exception("Stok tidak mencukupi. Tersedia: $currentQuantity, Diminta: $quantityRequested. Verifikasi dibatalkan.")
                 }
 
                 // 2. Update Stok, Hapus dari PENDING, Tambah ke VERIFIED
                 val newQuantity = currentQuantity - quantityRequested
 
                 val updates = hashMapOf<String, Any>(
-                    "quantity" to newQuantity,
+                    "quantity" to newQuantity, // PENTING: Pengurangan stok di sini
                     "interestedCount" to FieldValue.increment(-1),
                     // Pindah dari PENDING ke VERIFIED
                     "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
@@ -179,16 +178,17 @@ class DonationRepository(
 
                 transaction.update(donationRef, updates)
 
-                "Peminat berhasil diverifikasi. Stok berkurang menjadi $newQuantity."
+                "Peminat berhasil diverifikasi. Stok telah berkurang menjadi $newQuantity."
             }.await()
         } catch (e: Exception) {
             e.message ?: "Gagal memverifikasi peminat."
         } finally {
+            // Setelah transaksi, refresh data ke Room/UI
             refreshDonations()
         }
     }
 
-    // BARU: Fungsi untuk menolak peminat (LOGIC MODIFIED)
+    // BARU: Fungsi untuk menolak peminat (Tidak ada pengurangan stok)
     suspend fun rejectRecipient(
         donationId: String,
         recipientUserId: String

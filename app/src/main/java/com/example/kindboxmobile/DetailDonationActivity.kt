@@ -29,7 +29,7 @@ import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.firestore.DocumentSnapshot
 
-// BARU: Data class untuk memodelkan data peminat secara visual (workaround)
+// Data class untuk memodelkan data peminat secara visual (workaround)
 data class PeminatData(
     val userId: String,
     val name: String,
@@ -78,7 +78,6 @@ class DetailDonationActivity : AppCompatActivity() {
                 null
             }
             if (latestDoc != null && latestDoc.exists()) {
-                // Update item dengan data terbaru (terutama untuk status peminat)
                 donationItem = donationItem!!.copy(
                     quantity = (latestDoc.get("quantity") as? Number)?.toInt() ?: 1,
                     interestedUsers = (latestDoc.get("interestedUserIds") as? List<String> ?: emptyList()).joinToString(","),
@@ -92,10 +91,8 @@ class DetailDonationActivity : AppCompatActivity() {
         }
 
         binding.btnBackDetail.setOnClickListener { finish() }
-        setupBottomNav() // Panggil di sini agar navigasi selalu responsif
+        setupBottomNav()
     }
-
-    // ... (setupUI, loadDonorInfo, openWhatsApp, showDeleteDialog, setupBottomNav tidak diubah)
 
     private fun setupUI(item: DonationEntity) {
         binding.tvDetailTitle.text = item.title
@@ -104,10 +101,8 @@ class DetailDonationActivity : AppCompatActivity() {
         binding.tvDetailCondition.text = item.condition
         binding.tvDetailLocation.text = item.location
 
-        // FIX LINT WARNING: Menggunakan string resource
         binding.tvDetailQuantity.text = getString(R.string.quantity_pcs, item.quantity)
 
-        // Peminat & Tersedia
         val peminat = item.interestedCount
         val sisa = item.quantity
 
@@ -127,7 +122,6 @@ class DetailDonationActivity : AppCompatActivity() {
     private fun setupPOV(item: DonationEntity, latestDoc: DocumentSnapshot?) {
         val isOwner = currentUserId != null && currentUserId == item.userId
 
-        // --- Pengecekan Status Peminat (untuk Tampilan Peminat/Donor) ---
         val verifiedList = latestDoc?.get("verifiedRecipients") as? List<String> ?: emptyList()
         val rejectedList = latestDoc?.get("rejectedRecipients") as? List<String> ?: emptyList()
 
@@ -137,6 +131,8 @@ class DetailDonationActivity : AppCompatActivity() {
             else -> "PENDING"
         }
 
+        val availableStock = item.quantity
+
         if (isOwner) {
             // --- TAMPILAN PEMILIK ---
             binding.layoutDonorInfo.visibility = View.GONE
@@ -144,7 +140,7 @@ class DetailDonationActivity : AppCompatActivity() {
 
             binding.layoutOwnerInfo.visibility = View.VISIBLE
             binding.layoutOwnerButtons.visibility = View.VISIBLE
-            binding.tvDetailTersedia.text = item.quantity.toString()
+            binding.tvDetailTersedia.text = availableStock.toString()
 
             binding.btnDelete.setOnClickListener { showDeleteDialog(item.id) }
             binding.btnEdit.setOnClickListener {
@@ -153,7 +149,7 @@ class DetailDonationActivity : AppCompatActivity() {
                 startActivity(intent)
             }
 
-            loadInterestedUsers(item.id, latestDoc, item.quantity)
+            loadInterestedUsers(item.id, latestDoc, availableStock)
 
         } else {
             // --- TAMPILAN PEMINAT ---
@@ -178,18 +174,21 @@ class DetailDonationActivity : AppCompatActivity() {
                     binding.btnMinat.text = "Pengajuan Ditolak"
                 }
                 "PENDING" -> {
-                    checkIfInterested(item) { alreadyInterested ->
-                        if (alreadyInterested) {
-                            binding.btnMinat.isEnabled = false
-                            binding.btnMinat.setBackgroundColor(resources.getColor(android.R.color.darker_gray, theme))
-                            binding.btnMinat.text = "Sudah Minat (Pending)"
-                        } else if (item.quantity <= 0) {
-                            binding.btnMinat.isEnabled = false
-                            binding.btnMinat.setBackgroundColor(resources.getColor(android.R.color.darker_gray, theme))
-                            binding.btnMinat.text = "Barang Habis"
-                        } else {
-                            binding.btnMinat.setOnClickListener {
-                                incrementInterestedCount(item.id)
+                    // Cek jika stok habis sebelum diverifikasi
+                    if (availableStock <= 0) {
+                        binding.btnMinat.isEnabled = false
+                        binding.btnMinat.setBackgroundColor(resources.getColor(android.R.color.darker_gray, theme))
+                        binding.btnMinat.text = getString(R.string.stock_zero_recipient_status)
+                    } else {
+                        checkIfInterested(item) { alreadyInterested ->
+                            if (alreadyInterested) {
+                                binding.btnMinat.isEnabled = false
+                                binding.btnMinat.setBackgroundColor(resources.getColor(android.R.color.darker_gray, theme))
+                                binding.btnMinat.text = "Sudah Minat (Pending)"
+                            } else {
+                                binding.btnMinat.setOnClickListener {
+                                    incrementInterestedCount(item.id)
+                                }
                             }
                         }
                     }
@@ -201,8 +200,6 @@ class DetailDonationActivity : AppCompatActivity() {
         }
     }
 
-
-    // Fungsi bawaan checkIfInterested (hanya cek di interestedUserIds)
     private fun checkIfInterested(item: DonationEntity, callback: (Boolean) -> Unit) {
         val userId = currentUserId ?: return
         if (item.interestedUsers.contains(userId)) {
@@ -216,7 +213,7 @@ class DetailDonationActivity : AppCompatActivity() {
         }
     }
 
-    // Fungsi fetch peminat dan status (MODIFIKASI LOGIKA)
+    // MODIFIED: loadInterestedUsers (Menghilangkan warning stok dari sini)
     private fun loadInterestedUsers(donationId: String, latestDoc: DocumentSnapshot?, availableStock: Int) {
         binding.listInterestedUsers.removeAllViews()
 
@@ -224,8 +221,14 @@ class DetailDonationActivity : AppCompatActivity() {
         val verifiedList = latestDoc?.get("verifiedRecipients") as? List<String> ?: emptyList()
         val rejectedList = latestDoc?.get("rejectedRecipients") as? List<String> ?: emptyList()
 
-        // Gabungkan semua ID unik dari 3 daftar
         val allInterestedIds = (interestedList + verifiedList + rejectedList).distinct()
+
+        // Hapus penambahan warning stok di sini (logika dipindahkan ke createInterestedUserView)
+        // Pastikan tidak ada view tambahan selain yang ada di XML (TextView "Daftar Peminat:")
+        val defaultChildCount = 2 // Header text view (0) dan listInterestedUsers (1)
+        while (binding.layoutOwnerInfo.childCount > defaultChildCount) {
+            binding.layoutOwnerInfo.removeViewAt(1)
+        }
 
         if (allInterestedIds.isEmpty()) {
             val tv = TextView(this)
@@ -237,7 +240,6 @@ class DetailDonationActivity : AppCompatActivity() {
             return
         }
 
-        // Gunakan CoroutineScope untuk menjalankan fetching data secara asinkron dan aman
         CoroutineScope(Dispatchers.IO).launch {
             val peminatList = mutableListOf<PeminatData>()
 
@@ -259,7 +261,7 @@ class DetailDonationActivity : AppCompatActivity() {
                             location = doc.getString("location") ?: "Lokasi Tidak Tersedia",
                             photoUrl = doc.getString("photoUrl"),
                             interestStatus = status,
-                            quantityRequested = 1 // Asumsi quantity 1
+                            quantityRequested = 1
                         )
                         peminatList.add(peminat)
                     }
@@ -268,11 +270,9 @@ class DetailDonationActivity : AppCompatActivity() {
                 }
             }
 
-            // Setelah semua data selesai di-fetch, pindah ke Main Thread untuk update UI
             launch(Dispatchers.Main) {
                 binding.listInterestedUsers.removeAllViews()
 
-                // Urutkan: PENDING dulu, lalu VERIFIED, lalu REJECTED
                 val sortedList = peminatList.sortedWith(compareBy {
                     when (it.interestStatus) {
                         "PENDING" -> 1
@@ -289,7 +289,7 @@ class DetailDonationActivity : AppCompatActivity() {
         }
     }
 
-    // Fungsi untuk membuat tampilan peminat interaktif (MODIFIKASI TAMPILAN)
+    // MODIFIED: createInterestedUserView (Logika stok habis dipindahkan ke sini)
     private fun createInterestedUserView(donationId: String, peminat: PeminatData, availableStock: Int): View {
         val card = LinearLayout(this)
         card.orientation = LinearLayout.VERTICAL
@@ -300,17 +300,16 @@ class DetailDonationActivity : AppCompatActivity() {
         cardParams.setMargins(0, 0, 0, 16)
         card.layoutParams = cardParams
 
-        // Kontainer Utama dengan background & border berdasarkan status
-        card.setPadding(16, 16, 16, 16)
-
+        // --- 1. Tentukan Drawable berdasarkan Status ---
         val cardBackground = when (peminat.interestStatus) {
-            "VERIFIED" -> R.drawable.bg_card_green_outline // Hijau
-            "REJECTED" -> R.drawable.bg_card_red_outline // ASUMSI Anda memiliki drawable merah
-            else -> R.drawable.bg_card_item // Abu-abu/default
+            "VERIFIED" -> R.drawable.bg_card_green_outline
+            "REJECTED" -> R.drawable.bg_card_red_outline // ASUMSI FILE INI ADA
+            else -> R.drawable.bg_card_item
         }
         card.setBackgroundResource(cardBackground)
+        card.setPadding(16, 16, 16, 16)
 
-        // --- Konten Card (Profil, Nama, Lokasi) ---
+        // --- Konten Card (Profil, Nama, Lokasi, Rating) ---
         val contentLayout = LinearLayout(this)
         contentLayout.orientation = LinearLayout.HORIZONTAL
         contentLayout.layoutParams = LinearLayout.LayoutParams(
@@ -319,7 +318,6 @@ class DetailDonationActivity : AppCompatActivity() {
         )
         contentLayout.gravity = android.view.Gravity.CENTER_VERTICAL
 
-        // ImageView Profil
         val ivProfile = ImageView(this)
         val imageParams = LinearLayout.LayoutParams(56.dpToPx(), 56.dpToPx())
         imageParams.setMargins(0, 0, 12.dpToPx(), 0)
@@ -330,7 +328,6 @@ class DetailDonationActivity : AppCompatActivity() {
         }
         contentLayout.addView(ivProfile)
 
-        // Text Info
         val infoLayout = LinearLayout(this)
         infoLayout.orientation = LinearLayout.VERTICAL
         infoLayout.layoutParams = LinearLayout.LayoutParams(
@@ -352,7 +349,6 @@ class DetailDonationActivity : AppCompatActivity() {
         tvLocation.setTextColor(resources.getColor(R.color.black, theme))
         infoLayout.addView(tvLocation)
 
-        // Rating (Simulasi 5 Bintang)
         val ratingLayout = LinearLayout(this)
         ratingLayout.orientation = LinearLayout.HORIZONTAL
         for (i in 1..5) {
@@ -368,7 +364,7 @@ class DetailDonationActivity : AppCompatActivity() {
         contentLayout.addView(infoLayout)
         card.addView(contentLayout)
 
-        // --- Status dan Tombol Aksi ---
+        // --- 2. Status dan Tombol Aksi ---
         val statusText = TextView(this)
         statusText.setPadding(0, 16.dpToPx(), 0, 0)
         statusText.typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -386,25 +382,46 @@ class DetailDonationActivity : AppCompatActivity() {
                 card.addView(statusText)
             }
             "PENDING" -> {
+                val isStockZero = availableStock <= 0
+
+                // Tambahkan pesan stok habis di atas tombol jika stok 0
+                if (isStockZero) {
+                    val stockWarning = TextView(this)
+                    stockWarning.text = getString(R.string.stock_zero_owner_warning)
+                    stockWarning.textSize = 12f
+                    stockWarning.setTextColor(resources.getColor(R.color.kindbox_red, theme))
+                    stockWarning.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    stockWarning.setPadding(0, 0, 0, 8.dpToPx())
+                    card.addView(stockWarning)
+                }
+
                 statusText.text = getString(R.string.pending_interest_status, peminat.quantityRequested)
                 statusText.setTextColor(resources.getColor(R.color.kindbox_text_color, theme))
                 card.addView(statusText)
 
-                // Tambahkan tombol Aksi hanya jika PENDING dan stok masih ada
-                if (availableStock > 0) {
-                    val actionLayout = LinearLayout(this)
-                    actionLayout.orientation = LinearLayout.HORIZONTAL
-                    actionLayout.layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { topMargin = 8.dpToPx() }
+                // Tambahkan tombol Aksi
+                val actionLayout = LinearLayout(this)
+                actionLayout.orientation = LinearLayout.HORIZONTAL
+                actionLayout.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = 8.dpToPx() }
 
-                    // Tombol Verifikasi
-                    val btnVerify = Button(this)
-                    btnVerify.text = "Verifikasi"
-                    btnVerify.setBackgroundResource(R.drawable.bg_button_primary)
-                    btnVerify.textSize = 12f
-                    actionLayout.addView(btnVerify, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply { rightMargin = 8.dpToPx() })
+                // Tentukan warna tombol berdasarkan status stok
+                val buttonColorActive = resources.getColor(R.color.kindbox_dark_green, theme)
+                val buttonColorDisabled = resources.getColor(android.R.color.darker_gray, theme)
+                val rejectColorActive = resources.getColor(R.color.kindbox_red, theme)
+
+                // Tombol Verifikasi
+                val btnVerify = Button(this)
+                btnVerify.text = "Terima"
+                btnVerify.textSize = 12f
+                btnVerify.isEnabled = !isStockZero // Nonaktifkan jika stok 0
+                btnVerify.setBackgroundColor(if (isStockZero) buttonColorDisabled else buttonColorActive)
+
+                actionLayout.addView(btnVerify, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply { rightMargin = 8.dpToPx() })
+
+                if (!isStockZero) {
                     btnVerify.setOnClickListener {
                         if (availableStock < peminat.quantityRequested) {
                             Toast.makeText(this, "Stok ($availableStock) tidak cukup.", Toast.LENGTH_LONG).show()
@@ -412,27 +429,32 @@ class DetailDonationActivity : AppCompatActivity() {
                             showVerificationDialog(donationId, peminat.userId, peminat.quantityRequested)
                         }
                     }
+                }
 
-                    // Tombol Tolak
-                    val btnReject = Button(this)
-                    btnReject.text = "Tolak"
-                    btnReject.setBackgroundColor(resources.getColor(R.color.kindbox_red, theme))
-                    btnReject.textSize = 12f
-                    actionLayout.addView(btnReject, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply { leftMargin = 8.dpToPx() })
+                // Tombol Tolak
+                val btnReject = Button(this)
+                btnReject.text = "Tolak"
+                btnReject.textSize = 12f
+                btnReject.isEnabled = !isStockZero // Nonaktifkan jika stok 0
+                btnReject.setBackgroundColor(if (isStockZero) buttonColorDisabled else rejectColorActive)
+
+                actionLayout.addView(btnReject, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply { leftMargin = 8.dpToPx() })
+
+                if (!isStockZero) {
                     btnReject.setOnClickListener {
                         showRejectionDialog(donationId, peminat.userId)
                     }
-
-                    card.addView(actionLayout)
                 }
+
+                card.addView(actionLayout)
             }
         }
 
         return card
     }
 
-    // ... (Fungsi showVerificationDialog, showRejectionDialog, incrementInterestedCount, dll. tidak diubah isinya)
-    // ...
+    // ... (Fungsi showVerificationDialog, showRejectionDialog, incrementInterestedCount, dll. tidak diubah)
+
     private fun showVerificationDialog(donationId: String, recipientUserId: String, quantity: Int) {
         AlertDialog.Builder(this)
             .setTitle("Verifikasi Peminat")
@@ -467,29 +489,6 @@ class DetailDonationActivity : AppCompatActivity() {
             }
             .setNegativeButton("Batal", null)
             .show()
-    }
-
-    private fun incrementInterestedCount(donationId: String) {
-        val userId = currentUserId ?: return
-        val docRef = db.collection("donations").document(donationId)
-
-        db.runTransaction { transaction ->
-            val snapshot = transaction.get(docRef)
-            val currentList = snapshot.get("interestedUserIds") as? List<*> ?: emptyList<String>()
-
-            if (!currentList.contains(userId)) {
-                val currentCount = snapshot.getLong("interestedCount") ?: 0
-                transaction.update(docRef, "interestedCount", currentCount + 1)
-                transaction.update(docRef, "interestedUserIds", com.google.firebase.firestore.FieldValue.arrayUnion(userId))
-            }
-        }.addOnSuccessListener {
-            Toast.makeText(this, "Minat berhasil dicatat!", Toast.LENGTH_SHORT).show()
-            binding.btnMinat.isEnabled = false
-            binding.btnMinat.text = "Sudah Minat"
-
-            val currentPeminat = binding.tvDetailPeminat.text.toString().toIntOrNull() ?: 0
-            binding.tvDetailPeminat.text = (currentPeminat + 1).toString()
-        }
     }
 
     private fun loadDonorInfo(userId: String) {
@@ -544,5 +543,28 @@ class DetailDonationActivity : AppCompatActivity() {
 
     private fun Int.dpToPx(): Int {
         return (this * resources.displayMetrics.density).toInt()
+    }
+
+    private fun incrementInterestedCount(donationId: String) {
+        val userId = currentUserId ?: return
+        val docRef = db.collection("donations").document(donationId)
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            val currentList = snapshot.get("interestedUserIds") as? List<*> ?: emptyList<String>()
+
+            if (!currentList.contains(userId)) {
+                val currentCount = snapshot.getLong("interestedCount") ?: 0
+                transaction.update(docRef, "interestedCount", currentCount + 1)
+                transaction.update(docRef, "interestedUserIds", com.google.firebase.firestore.FieldValue.arrayUnion(userId))
+            }
+        }.addOnSuccessListener {
+            Toast.makeText(this, "Minat berhasil dicatat!", Toast.LENGTH_SHORT).show()
+            binding.btnMinat.isEnabled = false
+            binding.btnMinat.text = "Sudah Minat"
+
+            val currentPeminat = binding.tvDetailPeminat.text.toString().toIntOrNull() ?: 0
+            binding.tvDetailPeminat.text = (currentPeminat + 1).toString()
+        }
     }
 }

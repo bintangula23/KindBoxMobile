@@ -18,4 +18,6 @@
     </string-array>
     <string name="quantity_pcs">%1$d Pcs</string>
     <string name="pending_interest_status">Status: PENDING (Diminta: %1$d Pcs)</string>
+    <string name="stock_zero_owner_warning">Stok habis, tidak bisa memverifikasi</string>
+    <string name="stock_zero_recipient_status">Barang habis sebelum diverifikasi</string>
 </resources>
