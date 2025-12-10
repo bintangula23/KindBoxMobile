@@ -4,7 +4,6 @@ import android.net.Uri
 import com.cloudinary.android.MediaManager
 import com.cloudinary.android.callback.ErrorInfo
 import com.cloudinary.android.callback.UploadCallback
-// HAPUS: import com.cloudinary.android.signed
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +14,8 @@ import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 
 class DonationRepository(
     private val donationDao: DonationDao,
@@ -27,6 +28,12 @@ class DonationRepository(
         try {
             val snapshot = firestore.collection("donations").get().await()
             val donations = snapshot.documents.map { doc ->
+                // Perlu memuat semua user ID, termasuk yang diverifikasi/ditolak,
+                // jika kita ingin menampilkannya di daftar Peminat.
+                // Karena kita tidak mengubah DonationEntity, kita tidak bisa menyimpan list status.
+                // Kita hanya bisa mengandalkan 'interestedUsers' yang hanya menyimpan ID PENDING.
+                // Ini akan diatasi di DetailDonationActivity dengan asumsi data tambahan.
+
                 val interestedList = doc.get("interestedUserIds") as? List<String> ?: emptyList()
                 val interestedString = interestedList.joinToString(",")
 
@@ -51,7 +58,7 @@ class DonationRepository(
         }
     }
 
-    // Fungsi Upload Donasi Baru
+    // Fungsi Upload Donasi Baru (Tidak Berubah)
     suspend fun uploadDonation(
         title: String, desc: String, imageUri: Uri?, location: String,
         quantity: Int, category: String, condition: String, whatsapp: String, userId: String
@@ -61,7 +68,6 @@ class DonationRepository(
             var downloadUrl = ""
 
             if (imageUri != null) {
-                // Upload Baru: Menggunakan Signed Upload
                 downloadUrl = uploadToCloudinary(imageUri, "barang_$id")
             }
 
@@ -77,7 +83,10 @@ class DonationRepository(
                 "imageUrl" to downloadUrl, "location" to location, "quantity" to quantity,
                 "category" to category, "condition" to condition, "whatsappNumber" to whatsapp,
                 "interestedCount" to 0,
-                "interestedUserIds" to listOf<String>()
+                "interestedUserIds" to listOf<String>(),
+                // ASUMSI FIELD BARU UNTUK STATUS
+                "verifiedRecipients" to listOf<String>(),
+                "rejectedRecipients" to listOf<String>()
             )
 
             firestore.collection("donations").document(id).set(firestoreData).await()
@@ -85,7 +94,7 @@ class DonationRepository(
         }
     }
 
-    // FITUR UPDATE DONASI
+    // FITUR UPDATE DONASI (Tidak Berubah)
     suspend fun updateDonation(
         id: String,
         title: String, desc: String, imageUri: Uri?, oldImageUrl: String,
@@ -94,12 +103,10 @@ class DonationRepository(
         withContext(Dispatchers.IO) {
             var downloadUrl = oldImageUrl
 
-            // Perbaikan: Jika ada image baru, lakukan Signed Upload menggunakan public_id yang sama untuk OVERWRITE.
             if (imageUri != null) {
                 downloadUrl = uploadToCloudinary(imageUri, "barang_$id")
             }
 
-            // Update Firestore
             val updates = mapOf(
                 "title" to title,
                 "description" to desc,
@@ -116,16 +123,15 @@ class DonationRepository(
         }
     }
 
-    // Fungsi Helper Cloudinary: Menggunakan Signed Upload (Versi Java Standar)
+    // Fungsi Helper Cloudinary (Tidak Berubah)
     private suspend fun uploadToCloudinary(uri: Uri, publicId: String?): String = suspendCoroutine { continuation ->
 
-        // FIX: Menggunakan versi yang tidak memanggil .signed() secara eksplisit
         val request = MediaManager.get().upload(uri)
 
         if (publicId != null) {
             request.option("public_id", publicId)
-            request.option("overwrite", true) // Aktifkan overwrite karena ini Signed Upload
-            request.option("signature", null) // Tambahkan signature null untuk memastikan Signed Upload
+            request.option("overwrite", true)
+            request.option("signature", null)
         }
 
         request.callback(object : UploadCallback {
@@ -139,5 +145,73 @@ class DonationRepository(
             override fun onProgress(requestId: String?, bytes: Long, totalBytes: Long) {}
             override fun onReschedule(requestId: String?, error: ErrorInfo?) {}
         }).dispatch()
+    }
+
+    // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi (LOGIC MODIFIED)
+    suspend fun verifyRecipientTransaction(
+        donationId: String,
+        recipientUserId: String,
+        quantityRequested: Int
+    ): String = withContext(Dispatchers.IO) {
+        val donationRef = firestore.collection("donations").document(donationId)
+
+        return@withContext try {
+            firestore.runTransaction { transaction ->
+                val donationSnapshot = transaction.get(donationRef)
+
+                // 1. Validasi Stok
+                val currentQuantity = (donationSnapshot.get("quantity") as? Number)?.toInt() ?: 0
+
+                if (currentQuantity < quantityRequested) {
+                    throw Exception("Stok tidak mencukupi. Tersedia: $currentQuantity, Diminta: $quantityRequested.")
+                }
+
+                // 2. Update Stok, Hapus dari PENDING, Tambah ke VERIFIED
+                val newQuantity = currentQuantity - quantityRequested
+
+                val updates = hashMapOf<String, Any>(
+                    "quantity" to newQuantity,
+                    "interestedCount" to FieldValue.increment(-1),
+                    // Pindah dari PENDING ke VERIFIED
+                    "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
+                    "verifiedRecipients" to FieldValue.arrayUnion(recipientUserId)
+                )
+
+                transaction.update(donationRef, updates)
+
+                "Peminat berhasil diverifikasi. Stok berkurang menjadi $newQuantity."
+            }.await()
+        } catch (e: Exception) {
+            e.message ?: "Gagal memverifikasi peminat."
+        } finally {
+            refreshDonations()
+        }
+    }
+
+    // BARU: Fungsi untuk menolak peminat (LOGIC MODIFIED)
+    suspend fun rejectRecipient(
+        donationId: String,
+        recipientUserId: String
+    ): String = withContext(Dispatchers.IO) {
+        val donationRef = firestore.collection("donations").document(donationId)
+
+        return@withContext try {
+            firestore.runTransaction { transaction ->
+
+                // Pindah dari PENDING ke REJECTED (Tanpa mengubah stok)
+                val updates = hashMapOf<String, Any>(
+                    "interestedCount" to FieldValue.increment(-1),
+                    "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
+                    "rejectedRecipients" to FieldValue.arrayUnion(recipientUserId)
+                )
+                transaction.update(donationRef, updates)
+
+                "Peminat berhasil ditolak."
+            }.await()
+        } catch (e: Exception) {
+            e.message ?: "Gagal menolak peminat."
+        } finally {
+            refreshDonations()
+        }
     }
 }

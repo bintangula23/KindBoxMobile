@@ -16,4 +16,6 @@
         <item>Baru</item>
         <item>Bekas</item>
     </string-array>
+    <string name="quantity_pcs">%1$d Pcs</string>
+    <string name="pending_interest_status">Status: PENDING (Diminta: %1$d Pcs)</string>
 </resources>
