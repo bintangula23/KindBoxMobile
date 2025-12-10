@@ -4,6 +4,7 @@ import android.net.Uri
 import com.cloudinary.android.MediaManager
 import com.cloudinary.android.callback.ErrorInfo
 import com.cloudinary.android.callback.UploadCallback
+// HAPUS: import com.cloudinary.android.signed
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
@@ -60,7 +61,8 @@ class DonationRepository(
             var downloadUrl = ""
 
             if (imageUri != null) {
-                downloadUrl = uploadToCloudinary(imageUri, id)
+                // Upload Baru: Menggunakan Signed Upload
+                downloadUrl = uploadToCloudinary(imageUri, "barang_$id")
             }
 
             val newDonation = DonationEntity(
@@ -83,7 +85,7 @@ class DonationRepository(
         }
     }
 
-    // --- FITUR BARU: Update Donasi ---
+    // FITUR UPDATE DONASI
     suspend fun updateDonation(
         id: String,
         title: String, desc: String, imageUri: Uri?, oldImageUrl: String,
@@ -92,9 +94,9 @@ class DonationRepository(
         withContext(Dispatchers.IO) {
             var downloadUrl = oldImageUrl
 
-            // Jika user memilih foto baru, upload ke Cloudinary
+            // Perbaikan: Jika ada image baru, lakukan Signed Upload menggunakan public_id yang sama untuk OVERWRITE.
             if (imageUri != null) {
-                downloadUrl = uploadToCloudinary(imageUri, id)
+                downloadUrl = uploadToCloudinary(imageUri, "barang_$id")
             }
 
             // Update Firestore
@@ -110,28 +112,32 @@ class DonationRepository(
             )
 
             firestore.collection("donations").document(id).update(updates).await()
-
-            // Update Room (Lokal) agar langsung berubah tanpa refresh
-            // Kita perlu mengambil data lama user ID dll, tapi karena update room parsial susah,
-            // kita refresh saja atau biarkan sync berikutnya.
-            // Opsi cepat: Trigger refresh
             refreshDonations()
         }
     }
 
-    // Fungsi Helper Cloudinary
-    private suspend fun uploadToCloudinary(uri: Uri, fileName: String): String = suspendCoroutine { continuation ->
-        MediaManager.get().upload(uri).unsigned("kindbox").option("public_id", "barang_$fileName")
-            .callback(object : UploadCallback {
-                override fun onSuccess(requestId: String?, resultData: MutableMap<Any?, Any?>?) {
-                    continuation.resume(resultData?.get("secure_url").toString())
-                }
-                override fun onError(requestId: String?, error: ErrorInfo?) {
-                    continuation.resumeWithException(Exception("Gagal Upload: ${error?.description}"))
-                }
-                override fun onStart(requestId: String?) {}
-                override fun onProgress(requestId: String?, bytes: Long, totalBytes: Long) {}
-                override fun onReschedule(requestId: String?, error: ErrorInfo?) {}
-            }).dispatch()
+    // Fungsi Helper Cloudinary: Menggunakan Signed Upload (Versi Java Standar)
+    private suspend fun uploadToCloudinary(uri: Uri, publicId: String?): String = suspendCoroutine { continuation ->
+
+        // FIX: Menggunakan versi yang tidak memanggil .signed() secara eksplisit
+        val request = MediaManager.get().upload(uri)
+
+        if (publicId != null) {
+            request.option("public_id", publicId)
+            request.option("overwrite", true) // Aktifkan overwrite karena ini Signed Upload
+            request.option("signature", null) // Tambahkan signature null untuk memastikan Signed Upload
+        }
+
+        request.callback(object : UploadCallback {
+            override fun onSuccess(requestId: String?, resultData: MutableMap<Any?, Any?>?) {
+                continuation.resume(resultData?.get("secure_url").toString())
+            }
+            override fun onError(requestId: String?, error: ErrorInfo?) {
+                continuation.resumeWithException(Exception("Gagal Upload: ${error?.description}"))
+            }
+            override fun onStart(requestId: String?) {}
+            override fun onProgress(requestId: String?, bytes: Long, totalBytes: Long) {}
+            override fun onReschedule(requestId: String?, error: ErrorInfo?) {}
+        }).dispatch()
     }
 }

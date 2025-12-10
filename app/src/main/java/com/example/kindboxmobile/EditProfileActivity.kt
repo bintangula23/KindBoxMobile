@@ -30,6 +30,7 @@ import java.util.Locale
 import com.cloudinary.android.MediaManager
 import com.cloudinary.android.callback.ErrorInfo
 import com.cloudinary.android.callback.UploadCallback
+// HAPUS: import com.cloudinary.android.signed
 
 class EditProfileActivity : AppCompatActivity() {
 
@@ -124,7 +125,6 @@ class EditProfileActivity : AppCompatActivity() {
                     val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
                     imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
 
-                    // Ubah ikon jadi 'check' atau hilangkan (opsional, di sini kita biarkan pensil)
                     return@setOnTouchListener true
                 }
             }
@@ -223,10 +223,11 @@ class EditProfileActivity : AppCompatActivity() {
     }
 
     private fun uploadProfileImage(userId: String, onComplete: (String) -> Unit) {
-        // UPLOAD KE CLOUDINARY
+        // UPLOAD KE CLOUDINARY - Menggunakan Signed Upload (Hanya Mengandalkan Konfigurasi Global)
         MediaManager.get().upload(imageUri)
-            .unsigned("kindbox") // Preset kamu
-            .option("public_id", "profil_$userId") // Nama file unik per user
+            // FIX: Hapus .signed(null) untuk mengatasi Unresolved reference
+            .option("public_id", "profil_$userId")
+            .option("overwrite", true)
             .callback(object : UploadCallback {
                 override fun onStart(requestId: String?) {}
                 override fun onProgress(requestId: String?, bytes: Long, totalBytes: Long) {}
@@ -295,6 +296,10 @@ class EditProfileActivity : AppCompatActivity() {
         Toast.makeText(this, "Mencari lokasi...", Toast.LENGTH_SHORT).show()
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
                     val geocoder = Geocoder(this, Locale.getDefault())
