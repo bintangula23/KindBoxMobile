@@ -372,12 +372,12 @@ class DetailDonationActivity : AppCompatActivity() {
 
         when (peminat.interestStatus) {
             "VERIFIED" -> {
-                statusText.text = "Peminat ini telah diverifikasi!"
+                statusText.text = "Peminat ini telah diterima!"
                 statusText.setTextColor(resources.getColor(android.R.color.holo_green_dark, theme))
                 card.addView(statusText)
             }
             "REJECTED" -> {
-                statusText.text = "Peminat ini telah ditolak."
+                statusText.text = "Peminat ini telah ditolak!"
                 statusText.setTextColor(resources.getColor(R.color.kindbox_red, theme))
                 card.addView(statusText)
             }
