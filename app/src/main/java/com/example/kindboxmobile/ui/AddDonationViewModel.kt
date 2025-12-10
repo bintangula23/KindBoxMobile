@@ -13,7 +13,7 @@ class AddDonationViewModel(private val repository: DonationRepository) : ViewMod
     private val _uploadStatus = MutableLiveData<Result<String>>()
     val uploadStatus: LiveData<Result<String>> = _uploadStatus
 
-    // Parameter diperbarui (terima location string, quantity, dll)
+    // Simpan Barang Baru
     fun saveDonation(
         title: String,
         desc: String,
@@ -39,9 +39,37 @@ class AddDonationViewModel(private val repository: DonationRepository) : ViewMod
             }
         }
     }
+
+    // Update Barang Lama
+    fun updateDonation(
+        id: String,
+        title: String,
+        desc: String,
+        uri: Uri?,
+        oldImageUrl: String,
+        location: String,
+        quantity: Int,
+        category: String,
+        condition: String,
+        whatsapp: String
+    ) {
+        _uploadStatus.value = Result.loading()
+
+        viewModelScope.launch {
+            try {
+                repository.updateDonation(
+                    id, title, desc, uri, oldImageUrl, location, quantity, category, condition, whatsapp
+                )
+                _uploadStatus.value = Result.success("Berhasil Update!")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uploadStatus.value = Result.error("Gagal Update: ${e.message}")
+            }
+        }
+    }
 }
 
-// Class Result helper (jika belum ada di file terpisah)
+// Class Result helper
 data class Result<out T>(val status: Status, val data: T?, val message: String?) {
     enum class Status { SUCCESS, ERROR, LOADING }
     companion object {

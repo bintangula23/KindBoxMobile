@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -15,7 +16,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
+import com.bumptech.glide.Glide
 import com.example.kindboxmobile.data.AppDatabase
+import com.example.kindboxmobile.data.DonationEntity
 import com.example.kindboxmobile.data.DonationRepository
 import com.example.kindboxmobile.databinding.ActivityAddDonationBinding
 import com.example.kindboxmobile.ui.AddDonationViewModel
@@ -35,6 +38,11 @@ class AddDonationActivity : AppCompatActivity() {
     private lateinit var viewModel: AddDonationViewModel
     private var imageUri: Uri? = null
     private var currentPhotoPath: String? = null
+
+    // Variabel untuk Mode Edit
+    private var isEditMode = false
+    private var editDonationId: String? = null
+    private var existingImageUrl: String = ""
 
     // Launchers
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -58,32 +66,67 @@ class AddDonationActivity : AppCompatActivity() {
 
         setupSpinners()
         setupObservers()
-        setupBottomNavigation() // <--- Logika Navigasi
+        setupBottomNavigation()
+
+        // --- CEK APAKAH INI MODE EDIT? ---
+        @Suppress("DEPRECATION")
+        val editData = intent.getParcelableExtra<DonationEntity>("EXTRA_EDIT_DATA")
+        if (editData != null) {
+            setupEditMode(editData)
+        }
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnChooseImage.setOnClickListener { showImageSourceDialog() }
         binding.cbUseProfileLocation.setOnCheckedChangeListener { _, isChecked -> if (isChecked) fetchProfileLocation() }
-        binding.btnKirim.setOnClickListener { uploadData() }
+
+        binding.btnKirim.setOnClickListener {
+            if (isEditMode) updateData() else uploadData()
+        }
     }
 
-    // --- LOGIKA NAVIGASI BAWAH ---
+    private fun setupEditMode(data: DonationEntity) {
+        isEditMode = true
+        editDonationId = data.id
+        existingImageUrl = data.imageUrl
+
+        // Ubah Judul Halaman
+        // Mengakses TextView header manual karena di XML tidak ada ID spesifik untuk TextView "Upload Barang"
+        // Cara alternatif: ubah text tombol kirim saja sudah cukup indikator
+        binding.btnKirim.text = "Simpan Perubahan"
+
+        // Isi Form dengan Data Lama
+        binding.etTitle.setText(data.title)
+        binding.etDesc.setText(data.description)
+        binding.etLocation.setText(data.location)
+        binding.etQuantity.setText(data.quantity.toString())
+        binding.etWhatsApp.setText(data.whatsappNumber)
+
+        // Set Spinner Category
+        val catAdapter = binding.spCategory.adapter as ArrayAdapter<String>
+        val catPosition = catAdapter.getPosition(data.category)
+        if (catPosition >= 0) binding.spCategory.setSelection(catPosition)
+
+        // Set Spinner Condition
+        val condAdapter = binding.spCondition.adapter as ArrayAdapter<String>
+        val condPosition = condAdapter.getPosition(data.condition)
+        if (condPosition >= 0) binding.spCondition.setSelection(condPosition)
+
+        // Tampilkan Gambar Lama (Glide)
+        if (data.imageUrl.isNotEmpty()) {
+            Glide.with(this).load(data.imageUrl).into(binding.ivPreview)
+        }
+    }
+
     private fun setupBottomNavigation() {
-        // 1. Home -> Pindah ke MainActivity & Tutup halaman ini
         binding.navHome.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
             finish()
         }
-
-        // 2. Add -> Do Nothing (Sudah di sini)
-
-        // 3. Profil -> Pindah ke Profil & Tutup halaman ini
         binding.navProfile.setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
             finish()
         }
     }
-
-    // --- SISA KODE LAINNYA TETAP SAMA ---
 
     private fun setupObservers() {
         viewModel.uploadStatus.observe(this) { result ->
@@ -91,17 +134,23 @@ class AddDonationActivity : AppCompatActivity() {
                 Result.Status.LOADING -> {
                     binding.progressBar.visibility = View.VISIBLE
                     binding.btnKirim.isEnabled = false
-                    binding.btnKirim.text = "Mengupload..."
+                    binding.btnKirim.text = if (isEditMode) "Menyimpan..." else "Mengupload..."
                 }
                 Result.Status.SUCCESS -> {
                     binding.progressBar.visibility = View.GONE
                     Toast.makeText(this, result.data, Toast.LENGTH_SHORT).show()
+
+                    // Jika edit, kembali ke MainActivity atau DetailActivity (tergantung flow)
+                    // Paling aman ke MainActivity refresh
+                    val intent = Intent(this, MainActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    startActivity(intent)
                     finish()
                 }
                 Result.Status.ERROR -> {
                     binding.progressBar.visibility = View.GONE
                     binding.btnKirim.isEnabled = true
-                    binding.btnKirim.text = "Kirim"
+                    binding.btnKirim.text = if (isEditMode) "Simpan Perubahan" else "Kirim"
                     Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
                 }
             }
@@ -109,17 +158,15 @@ class AddDonationActivity : AppCompatActivity() {
     }
 
     private fun uploadData() {
+        // Logika simpan baru (sama seperti sebelumnya)
         val title = binding.etTitle.text.toString().trim()
         val desc = binding.etDesc.text.toString().trim()
         val location = binding.etLocation.text.toString().trim()
         val whatsapp = binding.etWhatsApp.text.toString().trim()
-
         val quantityStr = binding.etQuantity.text.toString().trim()
         val quantity = if (quantityStr.isNotEmpty()) quantityStr.toInt() else 1
-
         val category = binding.spCategory.selectedItem.toString()
         val condition = binding.spCondition.selectedItem.toString()
-
         val currentUser = FirebaseAuth.getInstance().currentUser
 
         if (title.isEmpty() || location.isEmpty()) {
@@ -130,12 +177,39 @@ class AddDonationActivity : AppCompatActivity() {
             Toast.makeText(this, "Foto wajib dipilih", Toast.LENGTH_SHORT).show()
             return
         }
-        if (currentUser == null) {
-            Toast.makeText(this, "Login dulu!", Toast.LENGTH_SHORT).show()
+        if (currentUser == null) return
+
+        viewModel.saveDonation(title, desc, imageUri, location, quantity, category, condition, whatsapp, currentUser.uid)
+    }
+
+    private fun updateData() {
+        val title = binding.etTitle.text.toString().trim()
+        val desc = binding.etDesc.text.toString().trim()
+        val location = binding.etLocation.text.toString().trim()
+        val whatsapp = binding.etWhatsApp.text.toString().trim()
+        val quantityStr = binding.etQuantity.text.toString().trim()
+        val quantity = if (quantityStr.isNotEmpty()) quantityStr.toInt() else 1
+        val category = binding.spCategory.selectedItem.toString()
+        val condition = binding.spCondition.selectedItem.toString()
+
+        // Validasi (Boleh imageUri null jika tidak ganti foto)
+        if (title.isEmpty() || location.isEmpty()) {
+            Toast.makeText(this, "Judul dan Lokasi wajib diisi", Toast.LENGTH_SHORT).show()
             return
         }
 
-        viewModel.saveDonation(title, desc, imageUri, location, quantity, category, condition, whatsapp, currentUser.uid)
+        viewModel.updateDonation(
+            id = editDonationId!!,
+            title = title,
+            desc = desc,
+            uri = imageUri, // Bisa null (artinya tidak ganti foto)
+            oldImageUrl = existingImageUrl,
+            location = location,
+            quantity = quantity,
+            category = category,
+            condition = condition,
+            whatsapp = whatsapp
+        )
     }
 
     private fun setupSpinners() {

@@ -26,7 +26,6 @@ class DonationRepository(
         try {
             val snapshot = firestore.collection("donations").get().await()
             val donations = snapshot.documents.map { doc ->
-                // Ambil array interestedUsers dari Firestore, gabung jadi String
                 val interestedList = doc.get("interestedUserIds") as? List<String> ?: emptyList()
                 val interestedString = interestedList.joinToString(",")
 
@@ -42,7 +41,7 @@ class DonationRepository(
                     category = doc.getString("category") ?: "Lainnya",
                     condition = doc.getString("condition") ?: "Layak Pakai",
                     whatsappNumber = doc.getString("whatsappNumber") ?: "",
-                    interestedUsers = interestedString // Simpan list peminat
+                    interestedUsers = interestedString
                 )
             }
             donationDao.insertAll(donations)
@@ -51,7 +50,7 @@ class DonationRepository(
         }
     }
 
-    // Fungsi Upload Donasi (Simpan data awal)
+    // Fungsi Upload Donasi Baru
     suspend fun uploadDonation(
         title: String, desc: String, imageUri: Uri?, location: String,
         quantity: Int, category: String, condition: String, whatsapp: String, userId: String
@@ -68,20 +67,55 @@ class DonationRepository(
                 id = id, userId = userId, title = title, description = desc,
                 imageUrl = downloadUrl, location = location, quantity = quantity,
                 category = category, condition = condition, whatsappNumber = whatsapp,
-                interestedUsers = "" // Awalnya kosong
+                interestedUsers = ""
             )
 
-            // Simpan ke Firestore (Gunakan Array untuk interestedUserIds biar mudah di-query nanti)
             val firestoreData = mapOf(
                 "id" to id, "userId" to userId, "title" to title, "description" to desc,
                 "imageUrl" to downloadUrl, "location" to location, "quantity" to quantity,
                 "category" to category, "condition" to condition, "whatsappNumber" to whatsapp,
                 "interestedCount" to 0,
-                "interestedUserIds" to listOf<String>() // Array kosong
+                "interestedUserIds" to listOf<String>()
             )
 
             firestore.collection("donations").document(id).set(firestoreData).await()
             donationDao.insert(newDonation)
+        }
+    }
+
+    // --- FITUR BARU: Update Donasi ---
+    suspend fun updateDonation(
+        id: String,
+        title: String, desc: String, imageUri: Uri?, oldImageUrl: String,
+        location: String, quantity: Int, category: String, condition: String, whatsapp: String
+    ) {
+        withContext(Dispatchers.IO) {
+            var downloadUrl = oldImageUrl
+
+            // Jika user memilih foto baru, upload ke Cloudinary
+            if (imageUri != null) {
+                downloadUrl = uploadToCloudinary(imageUri, id)
+            }
+
+            // Update Firestore
+            val updates = mapOf(
+                "title" to title,
+                "description" to desc,
+                "imageUrl" to downloadUrl,
+                "location" to location,
+                "quantity" to quantity,
+                "category" to category,
+                "condition" to condition,
+                "whatsappNumber" to whatsapp
+            )
+
+            firestore.collection("donations").document(id).update(updates).await()
+
+            // Update Room (Lokal) agar langsung berubah tanpa refresh
+            // Kita perlu mengambil data lama user ID dll, tapi karena update room parsial susah,
+            // kita refresh saja atau biarkan sync berikutnya.
+            // Opsi cepat: Trigger refresh
+            refreshDonations()
         }
     }
 

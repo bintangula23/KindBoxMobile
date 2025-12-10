@@ -51,19 +51,14 @@ class DetailDonationActivity : AppCompatActivity() {
         binding.tvDetailCategory.text = item.category
         binding.tvDetailCondition.text = item.condition
         binding.tvDetailLocation.text = item.location
-
-        // PERBAIKAN DI SINI (Ganti tvDetailTotal jadi tvDetailQuantity)
         binding.tvDetailQuantity.text = "${item.quantity} Pcs"
 
-        // Peminat & Tersedia
         val peminat = item.interestedCount
-        // Pastikan stok tidak minus
         val sisa = if (item.quantity - peminat < 0) 0 else item.quantity - peminat
 
         binding.tvDetailPeminat.text = peminat.toString()
         binding.tvDetailTersedia.text = sisa.toString()
 
-        // Gambar
         if (item.imageUrl.isNotEmpty()) {
             Glide.with(this)
                 .load(item.imageUrl)
@@ -84,8 +79,13 @@ class DetailDonationActivity : AppCompatActivity() {
             binding.layoutOwnerButtons.visibility = View.VISIBLE
 
             binding.btnDelete.setOnClickListener { showDeleteDialog(item.id) }
+
+            // --- EDIT BARANG (UPDATED) ---
             binding.btnEdit.setOnClickListener {
-                Toast.makeText(this, "Fitur Edit segera hadir", Toast.LENGTH_SHORT).show()
+                val intent = Intent(this, AddDonationActivity::class.java)
+                intent.putExtra("EXTRA_EDIT_DATA", item) // Kirim data barang ke form
+                startActivity(intent)
+                finish() // Tutup detail, nanti user balik lagi setelah edit selesai
             }
 
             loadInterestedUsers(item.interestedUsers)
@@ -100,7 +100,6 @@ class DetailDonationActivity : AppCompatActivity() {
 
             loadDonorInfo(item.userId)
 
-            // Cek apakah sudah pernah klik minat?
             checkIfInterested(item) { alreadyInterested ->
                 if (alreadyInterested) {
                     binding.btnMinat.isEnabled = false
@@ -118,14 +117,11 @@ class DetailDonationActivity : AppCompatActivity() {
         }
     }
 
-    // Cek status minat user saat ini
     private fun checkIfInterested(item: DonationEntity, callback: (Boolean) -> Unit) {
         val userId = currentUserId ?: return
-        // Cek dari data lokal dulu (String dipisah koma)
         if (item.interestedUsers.contains(userId)) {
             callback(true)
         } else {
-            // Cek ke server untuk kepastian (opsional)
             db.collection("donations").document(item.id).get().addOnSuccessListener { doc ->
                 val list = doc.get("interestedUserIds") as? List<*>
                 val exists = list?.contains(userId) == true
@@ -148,16 +144,12 @@ class DetailDonationActivity : AppCompatActivity() {
 
     private fun loadInterestedUsers(userIdsString: String) {
         if (userIdsString.isEmpty()) return
-
         val ids = userIdsString.split(",").filter { it.isNotEmpty() }
         if (ids.isEmpty()) return
-
         binding.listInterestedUsers.removeAllViews()
-
         ids.forEach { uid ->
             db.collection("users").document(uid).get().addOnSuccessListener { doc ->
                 val name = doc.getString("name") ?: "User"
-
                 val tv = TextView(this)
                 tv.text = "• $name"
                 tv.setPadding(8, 8, 8, 8)
@@ -172,9 +164,7 @@ class DetailDonationActivity : AppCompatActivity() {
 
         db.runTransaction { transaction ->
             val snapshot = transaction.get(docRef)
-            // Perbaikan Unchecked Cast dengan List<*>
             val currentList = snapshot.get("interestedUserIds") as? List<*> ?: emptyList<String>()
-
             if (!currentList.contains(userId)) {
                 val currentCount = snapshot.getLong("interestedCount") ?: 0
                 transaction.update(docRef, "interestedCount", currentCount + 1)
@@ -184,8 +174,6 @@ class DetailDonationActivity : AppCompatActivity() {
             Toast.makeText(this, "Minat berhasil dicatat!", Toast.LENGTH_SHORT).show()
             binding.btnMinat.isEnabled = false
             binding.btnMinat.text = "Sudah Minat"
-
-            // Update angka di UI secara manual (biar gak nunggu refresh)
             val currentPeminat = binding.tvDetailPeminat.text.toString().toIntOrNull() ?: 0
             binding.tvDetailPeminat.text = (currentPeminat + 1).toString()
         }
@@ -198,10 +186,8 @@ class DetailDonationActivity : AppCompatActivity() {
         }
         var formatted = number.trim()
         if (formatted.startsWith("0")) formatted = "62" + formatted.substring(1)
-
         val message = "Halo, saya berminat dengan *$itemName* di KindBox."
         val url = "https://api.whatsapp.com/send?phone=$formatted&text=${Uri.encode(message)}"
-
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (e: Exception) {
