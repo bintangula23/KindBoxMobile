@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/white"
@@ -11,23 +12,42 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="20dp">
+
+            <ImageView
+                android:layout_width="100dp"
+                android:layout_height="50dp"
+                android:src="@drawable/logo" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="KindBox"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@color/kindbox_text_color"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+
         <ImageView
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:src="@mipmap/ic_launcher"
-            android:layout_marginTop="20dp"
-            android:layout_gravity="start"/> <ImageView
-        android:layout_width="250dp"
-        android:layout_height="200dp"
-        android:src="@mipmap/ic_launcher"
-        android:layout_marginTop="10dp"/> <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="WELCOME BACK 👋"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:textColor="@color/kindbox_text_color"
-        android:layout_marginTop="10dp"/>
+            android:layout_width="250dp"
+            android:layout_height="200dp"
+            android:src="@drawable/imagery1"
+            android:layout_marginTop="10dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WELCOME BACK 👋"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/kindbox_text_color"
+            android:layout_marginTop="10dp"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -65,17 +85,31 @@
             android:textColor="#666666"
             android:layout_marginBottom="4dp"/>
 
-        <EditText
-            android:id="@+id/etPassword"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:background="@drawable/bg_input_field"
-            android:hint="Enter Password"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:inputType="textPassword"
-            android:drawableEnd="@drawable/ic_input_add"
-            android:textColor="@color/kindbox_text_color"/>
+            android:layout_height="wrap_content"
+            app:passwordToggleEnabled="true"
+            app:passwordToggleTint="#666666"
+            app:hintEnabled="false"
+            app:boxBackgroundMode="none"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etPassword"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_input_field"
+                android:hint="Enter Password"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="40dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:includeFontPadding="false"
+                android:inputType="textPassword"
+                android:textColor="@color/kindbox_text_color"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
         <TextView
             android:id="@+id/tvForgotPassword"
             android:layout_width="match_parent"
@@ -114,7 +148,7 @@
                 android:id="@+id/tvRegister"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Get started!"
+                android:text="Register"
                 android:textStyle="bold"
                 android:textColor="@color/kindbox_text_color"/>
         </LinearLayout>
