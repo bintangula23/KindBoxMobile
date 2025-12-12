@@ -7,7 +7,13 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-
-    <color name="kindbox_primary">#5E8058</color>      <color name="kindbox_dark_green">#3E5D42</color>   <color name="kindbox_light_green">#D8E6C8</color>  <color name="kindbox_text_color">#2A3B2C</color>   <color name="kindbox_text_primary">#2A3B2C</color> <color name="kindbox_warning_bg">#FFF3CD</color>
-    <color name="kindbox_red">#D32F2F</color> <color name="kindbox_light_gray">#F5F5F5</color>
+    <color name="kindbox_primary">#5E8058</color>
+    <color name="kindbox_dark_green">#3E5D42</color>
+    <color name="kindbox_light_green">#D8E6C8</color>
+    <color name="kindbox_text_color">#2A3B2C</color>
+    <color name="kindbox_text_primary">#2A3B2C</color>
+    <color name="kindbox_warning_bg">#FFF3CD</color>
+    <color name="bg_card_green_outline">#F0F5EA</color>
+    <color name="kindbox_red">#D32F2F</color>
+    <color name="kindbox_light_gray">#F5F5F5</color>
 </resources>

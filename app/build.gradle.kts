@@ -95,4 +95,17 @@ dependencies {
     kapt(libs.androidx.room.compiler)
 
     implementation("com.cloudinary:cloudinary-android:2.5.0")
+
+    implementation(platform("androidx.compose:compose-bom:2024.06.00")) // Sesuaikan versinya jika perlu
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.9.0") // Penting untuk Activity Compose
+
+    // Compose Lifecycle (untuk observe LiveData dengan aman)
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.8")
+
+    // Coil - Image Loading untuk Compose (untuk memuat gambar Donasi)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }

@@ -1,38 +1,53 @@
 package com.example.kindboxmobile
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.os.Build
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import com.example.kindboxmobile.data.AppDatabase
-import com.example.kindboxmobile.data.DonationEntity
 import com.example.kindboxmobile.data.DonationRepository
-import com.example.kindboxmobile.databinding.ActivityMainBinding
-import com.example.kindboxmobile.ui.DonationAdapter
+import com.example.kindboxmobile.ui.HomeScreen
 import com.example.kindboxmobile.ui.MainViewModel
 import com.example.kindboxmobile.ui.ViewModelFactory
+import com.example.kindboxmobile.ui.theme.KindBoxMobileTheme
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import androidx.activity.result.contract.ActivityResultContracts
+import java.util.Locale
+
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
-    private lateinit var viewModel: MainViewModel
-    private lateinit var adapter: DonationAdapter
+    // Gunakan by viewModels
+    private val viewModel: MainViewModel by viewModels {
+        ViewModelFactory(
+            DonationRepository(
+                AppDatabase.getDatabase(this).donationDao(),
+                FirebaseFirestore.getInstance(),
+                FirebaseStorage.getInstance()
+            )
+        )
+    }
 
-    // List untuk menyimpan data asli (Barang Orang Lain)
-    private var otherUsersDonations: List<DonationEntity> = listOf()
-
-    // Variabel filter
-    private var currentSearchQuery: String = ""
-    private var currentCategoryFilter: String = "Semua Kategori" // Default filter
+    // Data Lokasi
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private val requestLocationPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            if (isGranted) getMyLastLocation() else Toast.makeText(this, "Izin lokasi ditolak", Toast.LENGTH_SHORT).show()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,164 +59,103 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        fetchUserData()
-        setupRecyclerView()
-        setupViewModel()
-        setupSearch()
-        setupFilterButton()
-        setupBottomNav()
+        setContent {
+            KindBoxMobileTheme {
+                // Ambil data donasi yang difilter/search
+                val filteredDonations by viewModel.filteredDonations.observeAsState(initial = emptyList())
+
+                // Ambil data user
+                val userName by viewModel.userName.observeAsState(initial = "User KindBox")
+                val userLocation by viewModel.userLocation.observeAsState(initial = "Memuat lokasi...")
+                val userPhotoUrl by viewModel.userPhotoUrl.observeAsState() // Ambil Photo URL
+
+                // Ambil state filter kategori
+                val currentCategoryFilter by viewModel.currentCategoryFilter.observeAsState(initial = "Semua Kategori")
+
+                HomeScreen(
+                    filteredDonations = filteredDonations,
+                    userName = userName,
+                    userLocation = userLocation,
+                    userPhotoUrl = userPhotoUrl, // Passing Photo URL
+                    onItemClick = { donation ->
+                        val intent = Intent(this, DetailDonationActivity::class.java)
+                        intent.putExtra("EXTRA_DONATION", donation)
+                        startActivity(intent)
+                    },
+                    onSearchSubmit = { query ->
+                        // Menggunakan setSearchQuery di ViewModel
+                        viewModel.setSearchQuery(query)
+                    },
+                    currentCategoryFilter = currentCategoryFilter,
+                    onCategoryFilterChange = { category ->
+                        viewModel.setCategoryFilter(category)
+                    },
+                    onRefresh = { viewModel.refreshData() }
+                )
+            }
+        }
+
+        viewModel.refreshData()
+        checkLocationPermission()
     }
 
     override fun onResume() {
         super.onResume()
-        fetchUserData()
-        if (::viewModel.isInitialized) {
-            viewModel.refreshData()
+        viewModel.refreshData()
+        viewModel.fetchUserData()
+    }
+
+    // --- Logika Lokasi ---
+
+    private fun checkLocationPermission() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            getMyLastLocation()
         }
     }
 
-    private fun fetchUserData() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        FirebaseFirestore.getInstance().collection("users").document(userId).get()
-            .addOnSuccessListener { document ->
-                if (document != null && document.exists()) {
-                    val name = document.getString("name") ?: "User KindBox"
-                    val location = document.getString("location") ?: "Lokasi belum diatur"
-                    binding.tvGreeting.text = "Hi, $name!"
-                    binding.tvHeaderLocation.text = "Berada di $location"
+    private fun getMyLastLocation() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    getAddressName(location.latitude, location.longitude)
+                } else {
+                    viewModel.setUserLocation("Lokasi tidak ditemukan. Coba nyalakan GPS.")
                 }
             }
-    }
-
-    private fun setupRecyclerView() {
-        adapter = DonationAdapter { donation ->
-            val intent = Intent(this, DetailDonationActivity::class.java)
-            intent.putExtra("EXTRA_DONATION", donation)
-            startActivity(intent)
-        }
-
-        binding.rvDonations.apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 2)
-            this.adapter = this@MainActivity.adapter
         }
     }
 
-    private fun setupViewModel() {
-        val database = AppDatabase.getDatabase(this)
-        val repository = DonationRepository(
-            database.donationDao(),
-            FirebaseFirestore.getInstance(),
-            FirebaseStorage.getInstance()
-        )
-        val factory = ViewModelFactory(repository)
-        viewModel = ViewModelProvider(this, factory)[MainViewModel::class.java]
-
-        viewModel.donations.observe(this) { listBarang ->
-            val myUserId = FirebaseAuth.getInstance().currentUser?.uid
-
-            // Hanya ambil barang yang BUKAN milik saya
-            otherUsersDonations = listBarang.filter { it.userId != myUserId }
-
-            // Terapkan filter gabungan
-            applyFilters()
-        }
-        viewModel.refreshData()
-    }
-
-    private fun setupSearch() {
-        binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                currentSearchQuery = s.toString() // Update query
-                applyFilters() // Terapkan filter gabungan
+    private fun getAddressName(lat: Double, lon: Double) {
+        val geocoder = Geocoder(this, Locale.getDefault())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                geocoder.getFromLocation(lat, lon, 1) { addresses ->
+                    if (!addresses.isNullOrEmpty()) {
+                        val address = addresses[0]
+                        val locText = listOfNotNull(address.subLocality, address.locality, address.adminArea).joinToString(", ")
+                        viewModel.setUserLocation(locText)
+                    } else {
+                        viewModel.setUserLocation("Alamat tidak dikenal")
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(lat, lon, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    val address = addresses[0]
+                    val locText = listOfNotNull(address.subLocality, address.locality, address.adminArea).joinToString(", ")
+                    viewModel.setUserLocation(locText)
+                } else {
+                    viewModel.setUserLocation("Alamat tidak dikenal")
+                }
             }
-
-            override fun afterTextChanged(s: Editable?) {}
-        })
-    }
-
-    private fun setupFilterButton() {
-        binding.btnFilter.setOnClickListener {
-            showCategoryFilterDialog()
-        }
-    }
-
-    private fun showCategoryFilterDialog() {
-        val categories = resources.getStringArray(R.array.donation_categories_filter)
-
-        // Temukan index kategori yang saat ini dipilih
-        val checkedItem = categories.indexOf(currentCategoryFilter).takeIf { it >= 0 } ?: 0
-
-        AlertDialog.Builder(this)
-            .setTitle("Filter Berdasarkan Kategori")
-            .setSingleChoiceItems(categories, checkedItem) { dialog, which ->
-                currentCategoryFilter = categories[which]
-                dialog.dismiss()
-                applyFilters()
-            }
-            .setNegativeButton("Batal") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .show()
-    }
-
-    private fun applyFilters() {
-        var filteredList = otherUsersDonations
-
-        // 1. Filter berdasarkan Kategori
-        if (currentCategoryFilter != "Semua Kategori") {
-            filteredList = filteredList.filter { it.category == currentCategoryFilter }
-        }
-
-        // 2. Filter berdasarkan Search Query
-        if (currentSearchQuery.isNotEmpty()) {
-            filteredList = filteredList.filter {
-                it.title.contains(currentSearchQuery, ignoreCase = true) ||
-                        it.description.contains(currentSearchQuery, ignoreCase = true)
-            }
-        }
-
-        updateList(filteredList)
-    }
-
-    private fun updateList(list: List<DonationEntity>) {
-        if (list.isEmpty()) {
-            binding.tvEmptyState.visibility = View.VISIBLE
-            binding.rvDonations.visibility = View.GONE
-
-            // BARU: Logika pesan kosong
-            if (currentCategoryFilter != "Semua Kategori") {
-                // Pesan khusus untuk filter kategori
-                binding.tvEmptyState.text = getString(R.string.empty_donations_filtered, currentCategoryFilter)
-            } else if (currentSearchQuery.isNotEmpty()) {
-                // Pesan khusus untuk filter search text
-                binding.tvEmptyState.text = "Tidak ada barang yang cocok dengan \"$currentSearchQuery\"."
-            }
-            else {
-                // Pesan default (tidak ada barang sama sekali)
-                binding.tvEmptyState.text = getString(R.string.belum_ada_donasi)
-            }
-        } else {
-            binding.tvEmptyState.visibility = View.GONE
-            binding.rvDonations.visibility = View.VISIBLE
-            adapter.submitList(list)
-        }
-    }
-
-    private fun setupBottomNav() {
-        binding.navHome.setOnClickListener {
-            viewModel.refreshData()
-            binding.rvDonations.smoothScrollToPosition(0)
-        }
-        binding.navAdd.setOnClickListener {
-            startActivity(Intent(this, AddDonationActivity::class.java))
-        }
-        binding.navProfile.setOnClickListener {
-            startActivity(Intent(this, ProfileActivity::class.java))
+        } catch (e: Exception) {
+            viewModel.setUserLocation("Gagal mengambil alamat")
+            e.printStackTrace()
         }
     }
 }
