@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import android.widget.AdapterView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -75,6 +74,8 @@ class ProfileActivity : AppCompatActivity() {
 
     private fun setupUserProfile() {
         val userId = auth.currentUser?.uid ?: return
+
+        // 1. Ambil Data Profil Dasar
         firestore.collection("users").document(userId).get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
@@ -88,6 +89,51 @@ class ProfileActivity : AppCompatActivity() {
                     if (!photoUrl.isNullOrEmpty()) {
                         Glide.with(this).load(photoUrl).into(binding.ivProfile)
                     }
+                }
+            }
+
+        // 2. Hitung Statistik (Level & Rating)
+        loadUserStatistics(userId)
+    }
+
+    // Di dalam ProfileActivity.kt
+
+    private fun loadUserStatistics(userId: String) {
+        // 1. Ambil Statistik "Jumlah Memberi" langsung dari Profil User
+        // Ini memastikan angka tidak hilang meskipun barang dihapus
+        firestore.collection("users").document(userId).get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    // Ambil angka counter (default 0 jika belum ada)
+                    val jumlahDonasi = (document.getLong("completedDonationCount") ?: 0).toInt()
+
+                    // Hitung Level Kebaikan: (Jumlah / 5) + 1
+                    val levelKebaikan = (jumlahDonasi / 5) + 1
+
+                    // Update Tampilan
+                    binding.tvLevelNumber.text = levelKebaikan.toString()
+                    binding.tvGoodnessLevel.text = "Kamu telah memberikan barang sebanyak $jumlahDonasi kali. Level kebaikan kamu adalah Level $levelKebaikan."
+                }
+            }
+            .addOnFailureListener {
+                binding.tvGoodnessLevel.text = "Gagal memuat statistik."
+            }
+
+        // 2. Hitung Rata-Rata Rating (Tetap sama)
+        firestore.collection("ratings")
+            .whereEqualTo("donorId", userId)
+            .get()
+            .addOnSuccessListener { documents ->
+                if (!documents.isEmpty) {
+                    var totalStars = 0.0
+                    for (doc in documents) {
+                        totalStars += (doc.getDouble("ratingValue") ?: 0.0)
+                    }
+                    val averageRating = totalStars / documents.size()
+                    binding.rbProfileRating.rating = averageRating.toFloat()
+                    binding.rbProfileRating.visibility = View.VISIBLE
+                } else {
+                    binding.rbProfileRating.rating = 0f
                 }
             }
     }
@@ -159,7 +205,6 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun setupFilterButtons() {
-        // Asumsi ID btnFilterMemberi dan btnFilterMinat telah ditambahkan di ImageView filter pada activity_profile.xml
         binding.btnFilterMemberi.setOnClickListener {
             showCategoryFilterDialog(true)
         }
@@ -172,7 +217,6 @@ class ProfileActivity : AppCompatActivity() {
         val categories = resources.getStringArray(R.array.donation_categories_filter)
         val currentFilter = if (isMemberi) categoryFilterMemberi else categoryFilterMinat
 
-        // Temukan index kategori yang saat ini dipilih
         val checkedItem = categories.indexOf(currentFilter).takeIf { it >= 0 } ?: 0
 
         AlertDialog.Builder(this)
@@ -198,12 +242,10 @@ class ProfileActivity : AppCompatActivity() {
     private fun applyFilterMemberi() {
         var filteredList = originalMyDonations
 
-        // 1. Filter berdasarkan Kategori
         if (categoryFilterMemberi != "Semua Kategori") {
             filteredList = filteredList.filter { it.category == categoryFilterMemberi }
         }
 
-        // 2. Filter berdasarkan Search Query
         if (searchMemberiQuery.isNotEmpty()) {
             filteredList = filteredList.filter {
                 it.title.contains(searchMemberiQuery, ignoreCase = true) ||
@@ -213,7 +255,6 @@ class ProfileActivity : AppCompatActivity() {
 
         adapterMemberi.submitList(filteredList)
 
-        // UBAH LOGIKA: Jika daftar kosong, tampilkan Toast (karena tidak ada TextView Empty State)
         if (filteredList.isEmpty()) {
             val emptyMessage = if (categoryFilterMemberi != "Semua Kategori") {
                 getString(R.string.empty_donations_filtered, categoryFilterMemberi)
@@ -229,12 +270,10 @@ class ProfileActivity : AppCompatActivity() {
     private fun applyFilterMinat() {
         var filteredList = originalMyInterests
 
-        // 1. Filter berdasarkan Kategori
         if (categoryFilterMinat != "Semua Kategori") {
             filteredList = filteredList.filter { it.category == categoryFilterMinat }
         }
 
-        // 2. Filter berdasarkan Search Query
         if (searchMinatQuery.isNotEmpty()) {
             filteredList = filteredList.filter {
                 it.title.contains(searchMinatQuery, ignoreCase = true) ||
@@ -244,7 +283,6 @@ class ProfileActivity : AppCompatActivity() {
 
         adapterMinat.submitList(filteredList)
 
-        // UBAH LOGIKA: Jika daftar kosong, tampilkan Toast (karena tidak ada TextView Empty State)
         if (filteredList.isEmpty()) {
             val emptyMessage = if (categoryFilterMinat != "Semua Kategori") {
                 getString(R.string.empty_donations_filtered, categoryFilterMinat)

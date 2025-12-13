@@ -24,12 +24,19 @@ class DonationRepository(
 ) {
     val allDonations: Flow<List<DonationEntity>> = donationDao.getAllDonations()
 
+    // MODIFIED: Menggabungkan semua status (Interested, Verified, Rejected) agar tampil di Riwayat
     suspend fun refreshDonations() = withContext(Dispatchers.IO) {
         try {
             val snapshot = firestore.collection("donations").get().await()
-            val donations = snapshot.documents.map { doc ->
-                val interestedList = doc.get("interestedUserIds") as? List<String> ?: emptyList()
-                val interestedString = interestedList.joinToString(",")
+            val donations = snapshot.documents.mapNotNull { doc ->
+                // 1. Ambil array ID dari ketiga list status di Firestore
+                val interestedIds = doc.get("interestedUserIds") as? List<String> ?: emptyList()
+                val verifiedIds = doc.get("verifiedRecipients") as? List<String> ?: emptyList()
+                val rejectedIds = doc.get("rejectedRecipients") as? List<String> ?: emptyList()
+
+                // 2. GABUNGKAN semuanya menjadi satu list unik
+                // Ini kuncinya: agar "Riwayat Minat" tetap mencatat barang meski statusnya sudah berubah
+                val allAssociatedUserIds = (interestedIds + verifiedIds + rejectedIds).distinct().joinToString(",")
 
                 DonationEntity(
                     id = doc.id,
@@ -43,7 +50,8 @@ class DonationRepository(
                     category = doc.getString("category") ?: "Lainnya",
                     condition = doc.getString("condition") ?: "Layak Pakai",
                     whatsappNumber = doc.getString("whatsappNumber") ?: "",
-                    interestedUsers = interestedString
+                    // 3. Simpan gabungan ID tadi ke field interestedUsers di Room
+                    interestedUsers = allAssociatedUserIds
                 )
             }
             donationDao.insertAll(donations)
@@ -140,7 +148,9 @@ class DonationRepository(
         }).dispatch()
     }
 
-    // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi (REVISI FINAL)
+    // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi
+    // Di dalam DonationRepository.kt
+
     suspend fun verifyRecipientTransaction(
         donationId: String,
         recipientUserId: String,
@@ -152,38 +162,39 @@ class DonationRepository(
             firestore.runTransaction { transaction ->
                 val donationSnapshot = transaction.get(donationRef)
 
-                // 1. Validasi Stok KRITIS
+                // 1. Validasi Stok
                 val currentQuantity = (donationSnapshot.get("quantity") as? Number)?.toInt() ?: 0
-
-                // Cek Stok Habis
                 if (currentQuantity <= 0) {
                     throw Exception("Stok barang sudah habis (0). Verifikasi dibatalkan.")
                 }
-
-                // Cek Stok Tidak Mencukupi
                 if (currentQuantity < quantityRequested) {
-                    throw Exception("Stok tidak mencukupi. Tersedia: $currentQuantity, Diminta: $quantityRequested. Verifikasi dibatalkan.")
+                    throw Exception("Stok tidak mencukupi.")
                 }
 
-                // 2. Update Stok, Hapus dari PENDING, Tambah ke VERIFIED
+                // 2. Update Stok & Status di Barang
                 val newQuantity = currentQuantity - quantityRequested
-
                 val updates = hashMapOf<String, Any>(
-                    "quantity" to newQuantity, // PENTING: Pengurangan stok di sini
+                    "quantity" to newQuantity,
                     "interestedCount" to FieldValue.increment(-1),
-                    // Pindah dari PENDING ke VERIFIED
                     "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
                     "verifiedRecipients" to FieldValue.arrayUnion(recipientUserId)
                 )
-
                 transaction.update(donationRef, updates)
 
-                "Peminat berhasil diverifikasi. Stok telah berkurang menjadi $newQuantity."
+                // 3. LOGIKA BARU: Update Counter "Jumlah Memberi" di Profil Pemberi
+                // Ini membuat angka tetap ada meskipun barang dihapus nanti
+                val donorId = donationSnapshot.getString("userId")
+                if (!donorId.isNullOrEmpty()) {
+                    val donorRef = firestore.collection("users").document(donorId)
+                    // Increment field 'completedDonationCount' sebesar 1
+                    transaction.update(donorRef, "completedDonationCount", FieldValue.increment(1))
+                }
+
+                "Peminat berhasil diverifikasi. Stok berkurang menjadi $newQuantity."
             }.await()
         } catch (e: Exception) {
             e.message ?: "Gagal memverifikasi peminat."
         } finally {
-            // Setelah transaksi, refresh data ke Room/UI
             refreshDonations()
         }
     }
@@ -212,6 +223,22 @@ class DonationRepository(
             e.message ?: "Gagal menolak peminat."
         } finally {
             refreshDonations()
+        }
+    }
+
+    // Di dalam DonationRepository class
+    suspend fun deleteDonation(donationId: String) = withContext(Dispatchers.IO) {
+        try {
+            // 1. Hapus dari Firestore
+            firestore.collection("donations").document(donationId).delete().await()
+
+            // 2. Hapus dari Room Lokal
+            donationDao.deleteById(donationId)
+
+            true // Berhasil
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false // Gagal
         }
     }
 }

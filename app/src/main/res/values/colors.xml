@@ -16,4 +16,5 @@
     <color name="bg_card_green_outline">#F0F5EA</color>
     <color name="kindbox_red">#D32F2F</color>
     <color name="kindbox_light_gray">#F5F5F5</color>
+    <color name="kindbox_yellow">#FFD700</color>
 </resources>

@@ -13,4 +13,7 @@ interface DonationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(donation: DonationEntity)
+
+    @Query("DELETE FROM donations WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

@@ -78,7 +78,14 @@ class MainViewModel(private val repository: DonationRepository) : ViewModel() {
         searchQuery: String
     ) {
         val myUserId = FirebaseAuth.getInstance().currentUser?.uid
-        var filteredList = allDonations.filter { it.userId != myUserId }
+
+        // REVISI DI SINI:
+        // Filter awal:
+        // 1. Barang bukan punya user yang sedang login (it.userId != myUserId)
+        // 2. Stok barang harus lebih dari 0 (it.quantity > 0)
+        var filteredList = allDonations.filter {
+            it.userId != myUserId && it.quantity > 0
+        }
 
         val search = searchQuery.trim()
 
@@ -97,7 +104,6 @@ class MainViewModel(private val repository: DonationRepository) : ViewModel() {
 
         _filteredDonations.value = filteredList
     }
-
 
     fun fetchUserData() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid
