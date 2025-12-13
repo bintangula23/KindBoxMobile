@@ -90,13 +90,19 @@ class DetailDonationActivity : AppCompatActivity() {
                 val verifiedList = latestDoc.get("verifiedRecipients") as? List<String> ?: emptyList()
                 val rejectedList = latestDoc.get("rejectedRecipients") as? List<String> ?: emptyList()
 
-                // Gabungkan semua user agar logika cek status lokal valid
-                val allUsers = (interestedList + verifiedList + rejectedList).distinct().joinToString(",")
+                // Gabungkan semua user untuk menghitung total peminat (interestedCount)
+                val allUsers = (interestedList + verifiedList + rejectedList).distinct()
+                val totalInterestedCount = allUsers.size
+
+                val remainingQuantity = (latestDoc.get("quantity") as? Number)?.toInt() ?: 1
+                // Gunakan fallback jika originalQuantity tidak ada (untuk data lama)
+                val originalQuantity = (latestDoc.get("originalQuantity") as? Number)?.toInt() ?: remainingQuantity
 
                 donationItem = donationItem!!.copy(
-                    quantity = (latestDoc.get("quantity") as? Number)?.toInt() ?: 1,
-                    interestedUsers = allUsers,
-                    interestedCount = (latestDoc.get("interestedCount") as? Number)?.toInt() ?: 0
+                    quantity = remainingQuantity, // Sisa Stok
+                    originalQuantity = originalQuantity, // Total Stok Awal
+                    interestedUsers = allUsers.joinToString(","),
+                    interestedCount = totalInterestedCount // Total Peminat
                 )
             }
 
@@ -116,12 +122,14 @@ class DetailDonationActivity : AppCompatActivity() {
         binding.tvDetailCondition.text = item.condition
         binding.tvDetailLocation.text = item.location
 
-        binding.tvDetailQuantity.text = getString(R.string.quantity_pcs, item.quantity)
+        // PERBAIKAN STOK SESUAI PERMINTAAN: Tampilkan Sisa Stok / Total Stok Awal
+        binding.tvDetailQuantity.text = "Tersedia: ${item.quantity} / ${item.originalQuantity} Pcs"
 
-        val peminat = item.interestedCount
-        val sisa = item.quantity
+        val peminat = item.interestedCount // Total Peminat
+        val sisa = item.quantity // Sisa Stok
 
         binding.tvDetailPeminat.text = peminat.toString()
+        // Ini adalah jumlah yang tersedia di Owner POV, yang merupakan Sisa Stok
         binding.tvDetailTersedia.text = sisa.toString()
 
         if (item.imageUrl.isNotEmpty()) {
@@ -324,17 +332,20 @@ class DetailDonationActivity : AppCompatActivity() {
         val userId = currentUserId ?: return
         if (item.interestedUsers.contains(userId)) {
             callback(true)
-        } else {
-            db.collection("donations").document(item.id).get().addOnSuccessListener { doc ->
-                val list = doc.get("interestedUserIds") as? List<*>
-                val verified = doc.get("verifiedRecipients") as? List<*>
-                val rejected = doc.get("rejectedRecipients") as? List<*>
+            return
+        }
 
-                val exists = (list?.contains(userId) == true) ||
-                        (verified?.contains(userId) == true) ||
-                        (rejected?.contains(userId) == true)
-                callback(exists)
-            }
+        db.collection("donations").document(item.id).get().addOnSuccessListener { doc ->
+            val list = doc.get("interestedUserIds") as? List<*>
+            val verified = doc.get("verifiedRecipients") as? List<*>
+            val rejected = doc.get("rejectedRecipients") as? List<*>
+
+            val exists = (list?.contains(userId) == true) ||
+                    (verified?.contains(userId) == true) ||
+                    (rejected?.contains(userId) == true)
+            callback(exists)
+        }.addOnFailureListener {
+            callback(false)
         }
     }
 
@@ -491,7 +502,6 @@ class DetailDonationActivity : AppCompatActivity() {
 
         ratingBar.numStars = 5
         ratingBar.stepSize = 0.1f
-        // REMOVED: ratingBar.isIndicator = true (Redundant & Causes Error)
 
         // Set Nilai Rating
         ratingBar.rating = peminat.averageRating.toFloat()
@@ -671,6 +681,7 @@ class DetailDonationActivity : AppCompatActivity() {
         return (this * resources.displayMetrics.density).toInt()
     }
 
+    // LOGIKA PERBAIKAN: Hanya update interestedUserIds di Firestore, dan update interestedCount di UI secara lokal.
     private fun incrementInterestedCount(donationId: String) {
         val userId = currentUserId ?: return
         val docRef = db.collection("donations").document(donationId)
@@ -678,19 +689,35 @@ class DetailDonationActivity : AppCompatActivity() {
         db.runTransaction { transaction ->
             val snapshot = transaction.get(docRef)
             val currentList = snapshot.get("interestedUserIds") as? List<*> ?: emptyList<String>()
+            val verifiedList = snapshot.get("verifiedRecipients") as? List<*> ?: emptyList<String>()
+            val rejectedList = snapshot.get("rejectedRecipients") as? List<*> ?: emptyList<String>()
 
-            if (!currentList.contains(userId)) {
-                val currentCount = snapshot.getLong("interestedCount") ?: 0
-                transaction.update(docRef, "interestedCount", currentCount + 1)
+            // Cek apakah user sudah ada di salah satu list (PENDING/VERIFIED/REJECTED)
+            val isAlreadyAssociated = currentList.contains(userId) || verifiedList.contains(userId) || rejectedList.contains(userId)
+
+            if (!isAlreadyAssociated) {
+                // HANYA TAMBAHKAN KE interestedUserIds (PENDING)
                 transaction.update(docRef, "interestedUserIds", FieldValue.arrayUnion(userId))
             }
         }.addOnSuccessListener {
             Toast.makeText(this, "Minat berhasil dicatat!", Toast.LENGTH_SHORT).show()
             binding.btnMinat.isEnabled = false
-            binding.btnMinat.text = "Sudah Minat"
+            binding.btnMinat.text = "Sudah Minat (Pending)"
 
-            val currentPeminat = binding.tvDetailPeminat.text.toString().toIntOrNull() ?: 0
-            binding.tvDetailPeminat.text = (currentPeminat + 1).toString()
+            // Update interestedCount di UI lokal dan entity lokal
+            if (donationItem != null) {
+                // Jumlah peminat total (interestedCount) bertambah 1 karena user ini baru
+                val newCount = donationItem!!.interestedCount + 1
+                binding.tvDetailPeminat.text = newCount.toString()
+
+                // Update juga entity lokal untuk mencegah double-tap/re-check error
+                donationItem = donationItem!!.copy(
+                    interestedCount = newCount,
+                    interestedUsers = if (donationItem!!.interestedUsers.isEmpty()) userId else "${donationItem!!.interestedUsers},$userId"
+                )
+            }
+        }.addOnFailureListener {
+            Toast.makeText(this, "Gagal mencatat minat", Toast.LENGTH_SHORT).show()
         }
     }
 }

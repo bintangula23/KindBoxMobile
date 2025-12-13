@@ -14,8 +14,9 @@ data class DonationEntity(
     val description: String = "",
     val imageUrl: String = "",
     val location: String = "Lokasi Tidak Tersedia",
-    val quantity: Int = 1,
-    val interestedCount: Int = 0,
+    val quantity: Int = 1, // Sisa Stok Saat Ini (Ini yang akan berkurang)
+    val originalQuantity: Int = 1, // Total Stok Awal (Ini yang tetap)
+    val interestedCount: Int = 0, // Total Peminat (PENDING + VERIFIED + REJECTED)
     val category: String = "Lainnya",
     val condition: String = "Layak Pakai",
     val whatsappNumber: String = "",

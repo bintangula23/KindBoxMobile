@@ -352,16 +352,17 @@ fun DonationContentGrid(
 }
 
 
-// === 5. Komponen Kartu Donasi (Tetap Sama) ===
+// === 5. Komponen Kartu Donasi (FIXED: LOGIKA STOK) ===
 
 @Composable
 fun DonationCard(
     donation: DonationEntity,
     onClick: (DonationEntity) -> Unit
 ) {
-    // Hitung Sisa Stok
-    val remainingStock = donation.quantity - donation.interestedCount
-    val displayStock = if (remainingStock < 0) 0 else remainingStock
+    // PERBAIKAN LOGIKA STOK: Hapus perhitungan lama.
+    // Gunakan properti yang sudah benar dari DonationEntity:
+    val remainingStock = donation.quantity // Sisa Stok
+    val totalQuantity = donation.originalQuantity // Total Stok Awal
 
     val kindboxDarkGreen = colorResource(id = R.color.kindbox_dark_green)
 
@@ -413,7 +414,8 @@ fun DonationCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Stok: $displayStock / ${donation.quantity}",
+                    // FORMAT YANG BENAR: Stok: Sisa Stok / Total Stok Awal
+                    text = "Stok: $remainingStock / $totalQuantity",
                     fontSize = 11.sp,
                     color = Color.Black
                 )

@@ -24,7 +24,7 @@ class DonationRepository(
 ) {
     val allDonations: Flow<List<DonationEntity>> = donationDao.getAllDonations()
 
-    // MODIFIED: Menggabungkan semua status (Interested, Verified, Rejected) agar tampil di Riwayat
+    // MODIFIED: Ambil originalQuantity dengan fallback dan hitung interestedCount dari ukuran list
     suspend fun refreshDonations() = withContext(Dispatchers.IO) {
         try {
             val snapshot = firestore.collection("donations").get().await()
@@ -34,9 +34,15 @@ class DonationRepository(
                 val verifiedIds = doc.get("verifiedRecipients") as? List<String> ?: emptyList()
                 val rejectedIds = doc.get("rejectedRecipients") as? List<String> ?: emptyList()
 
-                // 2. GABUNGKAN semuanya menjadi satu list unik
-                // Ini kuncinya: agar "Riwayat Minat" tetap mencatat barang meski statusnya sudah berubah
-                val allAssociatedUserIds = (interestedIds + verifiedIds + rejectedIds).distinct().joinToString(",")
+                // 2. GABUNGKAN semuanya menjadi satu list unik (Total Peminat)
+                val allAssociatedUserIds = (interestedIds + verifiedIds + rejectedIds).distinct()
+                val totalInterestedCount = allAssociatedUserIds.size // Hitung total peminat
+
+                // 3. Ambil Kuantitas dan Stok Awal
+                val remainingQuantity = (doc.get("quantity") as? Number)?.toInt() ?: 1
+                // Fallback untuk data lama: Jika originalQuantity tidak ada, gunakan remainingQuantity
+                val totalQuantity = (doc.get("originalQuantity") as? Number)?.toInt() ?: remainingQuantity
+
 
                 DonationEntity(
                     id = doc.id,
@@ -45,13 +51,14 @@ class DonationRepository(
                     description = doc.getString("description") ?: "",
                     imageUrl = doc.getString("imageUrl") ?: "",
                     location = doc.getString("location") ?: "Lokasi Tidak Tersedia",
-                    quantity = (doc.get("quantity") as? Number)?.toInt() ?: 1,
-                    interestedCount = (doc.get("interestedCount") as? Number)?.toInt() ?: 0,
+                    quantity = remainingQuantity, // Sisa Stok (Akan berkurang)
+                    originalQuantity = totalQuantity, // Total Stok Awal (Akan tetap)
+                    interestedCount = totalInterestedCount, // Total Peminat
                     category = doc.getString("category") ?: "Lainnya",
                     condition = doc.getString("condition") ?: "Layak Pakai",
                     whatsappNumber = doc.getString("whatsappNumber") ?: "",
-                    // 3. Simpan gabungan ID tadi ke field interestedUsers di Room
-                    interestedUsers = allAssociatedUserIds
+                    // 4. Simpan gabungan ID tadi ke field interestedUsers di Room
+                    interestedUsers = allAssociatedUserIds.joinToString(",")
                 )
             }
             donationDao.insertAll(donations)
@@ -60,7 +67,7 @@ class DonationRepository(
         }
     }
 
-    // Fungsi Upload Donasi Baru (Tidak Berubah)
+    // Fungsi Upload Donasi Baru (Modified: Tambah originalQuantity)
     suspend fun uploadDonation(
         title: String, desc: String, imageUri: Uri?, location: String,
         quantity: Int, category: String, condition: String, whatsapp: String, userId: String
@@ -75,7 +82,9 @@ class DonationRepository(
 
             val newDonation = DonationEntity(
                 id = id, userId = userId, title = title, description = desc,
-                imageUrl = downloadUrl, location = location, quantity = quantity,
+                imageUrl = downloadUrl, location = location, quantity = quantity, // Sisa Stok = Stok Awal
+                originalQuantity = quantity, // Stok Awal
+                interestedCount = 0,
                 category = category, condition = condition, whatsappNumber = whatsapp,
                 interestedUsers = ""
             )
@@ -83,6 +92,7 @@ class DonationRepository(
             val firestoreData = mapOf(
                 "id" to id, "userId" to userId, "title" to title, "description" to desc,
                 "imageUrl" to downloadUrl, "location" to location, "quantity" to quantity,
+                "originalQuantity" to quantity, // Tambah ke Firestore
                 "category" to category, "condition" to condition, "whatsappNumber" to whatsapp,
                 "interestedCount" to 0,
                 "interestedUserIds" to listOf<String>(),
@@ -90,12 +100,12 @@ class DonationRepository(
                 "rejectedRecipients" to listOf<String>()
             )
 
-            firestore.collection("donations").document(id).set(firestoreData).await()
+            firestore.collection("donations").document(id).set(firestoreData, SetOptions.merge()).await()
             donationDao.insert(newDonation)
         }
     }
 
-    // FITUR UPDATE DONASI (Tidak Berubah)
+    // FITUR UPDATE DONASI (Modified: Update originalQuantity juga jika kuantitas diubah)
     suspend fun updateDonation(
         id: String,
         title: String, desc: String, imageUri: Uri?, oldImageUrl: String,
@@ -114,6 +124,7 @@ class DonationRepository(
                 "imageUrl" to downloadUrl,
                 "location" to location,
                 "quantity" to quantity,
+                "originalQuantity" to quantity, // Update originalQuantity
                 "category" to category,
                 "condition" to condition,
                 "whatsappNumber" to whatsapp
@@ -149,8 +160,7 @@ class DonationRepository(
     }
 
     // BARU: Fungsi untuk memverifikasi peminat dan mengurangi stok menggunakan transaksi
-    // Di dalam DonationRepository.kt
-
+    // MODIFIED: interestedCount TIDAK DIUBAH
     suspend fun verifyRecipientTransaction(
         donationId: String,
         recipientUserId: String,
@@ -174,15 +184,14 @@ class DonationRepository(
                 // 2. Update Stok & Status di Barang
                 val newQuantity = currentQuantity - quantityRequested
                 val updates = hashMapOf<String, Any>(
-                    "quantity" to newQuantity,
-                    "interestedCount" to FieldValue.increment(-1),
+                    "quantity" to newQuantity, // HANYA MENGURANGI SISA STOK
+                    // interestedCount TIDAK DIUBAH
                     "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
                     "verifiedRecipients" to FieldValue.arrayUnion(recipientUserId)
                 )
                 transaction.update(donationRef, updates)
 
-                // 3. LOGIKA BARU: Update Counter "Jumlah Memberi" di Profil Pemberi
-                // Ini membuat angka tetap ada meskipun barang dihapus nanti
+                // 3. Update Counter "Jumlah Memberi" di Profil Pemberi
                 val donorId = donationSnapshot.getString("userId")
                 if (!donorId.isNullOrEmpty()) {
                     val donorRef = firestore.collection("users").document(donorId)
@@ -200,6 +209,7 @@ class DonationRepository(
     }
 
     // BARU: Fungsi untuk menolak peminat (Tidak ada pengurangan stok)
+    // MODIFIED: interestedCount TIDAK DIUBAH
     suspend fun rejectRecipient(
         donationId: String,
         recipientUserId: String
@@ -211,7 +221,7 @@ class DonationRepository(
 
                 // Pindah dari PENDING ke REJECTED (Tanpa mengubah stok)
                 val updates = hashMapOf<String, Any>(
-                    "interestedCount" to FieldValue.increment(-1),
+                    // interestedCount TIDAK DIUBAH
                     "interestedUserIds" to FieldValue.arrayRemove(recipientUserId),
                     "rejectedRecipients" to FieldValue.arrayUnion(recipientUserId)
                 )

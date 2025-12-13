@@ -20,12 +20,13 @@ class DonationAdapter(private val onItemClick: (DonationEntity) -> Unit) :
         fun bind(donation: DonationEntity) {
             binding.tvItemTitle.text = donation.title
 
-            // TAMPILKAN JUMLAH & SISA
-            val total = donation.quantity
-            val interested = donation.interestedCount
-            val remaining = if (total - interested < 0) 0 else total - interested
+            // PERBAIKAN LOGIKA DISPLAY STOK:
+            // Menggunakan property yang benar dari DonationEntity:
+            val remainingStock = donation.quantity // Ini adalah Sisa Stok (sudah berkurang)
+            val totalQuantity = donation.originalQuantity // Ini adalah Total Stok Awal (tidak berubah)
 
-            binding.tvItemQuantity.text = "Stok: $remaining / $total"
+            // Format yang diminta: "Stok: sisa stok / jumlah barang"
+            binding.tvItemQuantity.text = "Stok: $remainingStock / $totalQuantity"
             binding.tvItemLocation.text = if (donation.location.isNotEmpty()) donation.location else "Lokasi -"
 
             if (donation.imageUrl.isNotEmpty()) {
